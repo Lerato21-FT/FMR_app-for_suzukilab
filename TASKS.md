@@ -1,0 +1,28 @@
+Tasks are specified here. When done with a task, label it as complete. Execute the tasks in order of the priority. 
+# Tasks
+1. **[COMPLETE 2026-11-03]** The goal is to build a webapp that allows us to run FMR measurements. This is a co-planar waveguide FMR set up that uses the lock-in to detect the signal. We make field sweeps at fixed frequencies. The magnetic field is supplied by the electromagnet which is controlled by the kepco power source. We use the lock-in to set the current output on the kepco power supply. We use the same lock-in to set the modulation field as follows - we output a small AC voltage that pass through an amplifier and then fed into a copper coil of wire and we lock into this frequency to detect the signal. We Want to read the Labview_fmr/ file to understand how the FMR is set up and then we will plan how we will build the FMR webapp that is python based instead of using labview. 
+   - Findings and the proposed plan are in `notes/2026-11-03.md`.
+
+2. **[QUEUED — blocked on questions]** Answer the open questions below and approve (or amend) the plan in `notes/2026-11-03.md`. Every question must be answered before task 3 starts.
+   - **Q1. GNU Make is not installed on this PC.** AGENTS.md requires every command to run through the Makefile, and `make verify` is the gate. Do we approve installing GNU Make on the host, or use another approach?
+   - **Q2. How does the Docker container reach the instruments?** Docker Desktop on Windows cannot see GPIB or the Lake Shore on COM3. Options:
+     (a) a GPIB-to-Ethernet adapter (e.g. Prologix GPIB-ETHERNET or Keysight E5810), so the container talks to the instruments over the network, plus a serial-to-Ethernet adapter for the Lake Shore;
+     (b) attach the USB-GPIB adapter and the Lake Shore to the container with `usbipd`, which is already installed (fragile, and GPIB needs a Linux driver);
+     (c) run the backend natively on Windows using the NI-VISA that is already installed. This breaks the "nothing on the host" rule.
+     Which one? Which GPIB interface (make and model) is in the lab?
+   - **Q3. Analysis app code.** ARCHITECTURE.md and the README describe an earlier analysis app, but `src/` and `docker/` are not in this repo. Bring that code in (from where?), or start fresh here?
+   - **Q4. Stepper motor and multimeter.** Are the TIMS rotation stage and the `GPIB0::16` multimeter still in use? Do we need the stepper in v1, or only single-angle sweeps?
+   - **Q5. Hardware details to confirm.** Is the Kepco driven from SR830 Aux Out 1? What does "invert Vaux output" mean for sign, and is it one Kepco supply or two (≈996.3 vs ≈1984.4 Oe/V)? Is the RF source the 83640B or the 83623? Are the current calibrations still valid: Lake Shore scale and offset 1.544 / −11.956 (08/20/2026), and modulation 5.219 Oe/V at 700 Hz?
+   - **Q6. Saving data.** Is writing measurements to a `data/measurements/` folder in this repo (a bind mount, which departs from ARCHITECTURE.md) acceptable? Should saved files keep the exact LabVIEW naming and column format, including the phase column?
+   - **Q7. Initial commit contents.** Should `Labview_fmr/`, PROMPT.md and the other pre-existing files be committed? Should `.DS_Store` be gitignored?
+   - **Q8. Safety limits.** What are the maximum field, Aux Out voltage, ramp rate and RF power the app must never exceed?
+
+3. **[QUEUED]** Build the project skeleton and simulated instruments. Create `docker/`, update the Makefile and `.env.example`, and add the FastAPI app with simulated SR830, Lake Shore 425, 83640B and Kepco-via-Aux-Out drivers. Add the calibration module (Oe↔V, modulation RMS) with tests in `tests/<date>/`, showing a test failing once before it passes. `make verify` must be green.
+
+4. **[QUEUED]** Measurement engine. Implement the field sweep as a cancellable background task: set RF, ramp up, saturate, step Aux Out, read H, X and θ, ramp down, save. Add Skip and Stop, and always ramp the field down on errors. Save CSVs in the LabVIEW-compatible format. Test it end to end against the simulated instruments.
+
+5. **[QUEUED]** API and web page. Add validated endpoints to start, skip, stop and check runs, plus a live data stream. The page gets a settings form and live plots of signal and phase against H, and browser checks.
+
+6. **[QUEUED]** Real hardware drivers. Implement and bench-test the drivers against the actual instruments, using the access route chosen in Q2. Add the stepper motor if needed (Q4).
+
+7. **[QUEUED]** Documentation. Rewrite ARCHITECTURE.md and the README for the acquisition app, and add `docs/labview-fmr-setup.md`.
