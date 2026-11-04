@@ -5,7 +5,7 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
 
 2. **[QUEUED — blocked on questions]** Answer the open questions below and approve (or amend) the plan in `notes/2026-11-03.md`. Every question must be answered before task 3 starts.
    - **Q1. GNU Make is not installed on this PC.** AGENTS.md requires every command to run through the Makefile, and `make verify` is the gate. Do we approve installing GNU Make on the host, or use another approach?
-   - **Q2. How does the Docker container reach the instruments?** Docker Desktop on Windows cannot see GPIB or the Lake Shore on COM3. Options:
+   - **Q2. [ANSWERED 2026-11-04: option (c)]** The app runs natively on the Windows lab computer with PyVISA over NI-VISA; Docker is not used. AGENTS.md and ARCHITECTURE.md are updated. Still open: which GPIB interface (make and model) is in the lab. Original question: **How does the Docker container reach the instruments?** Docker Desktop on Windows cannot see GPIB or the Lake Shore on COM3. Options:
      (a) a GPIB-to-Ethernet adapter (e.g. Prologix GPIB-ETHERNET or Keysight E5810), so the container talks to the instruments over the network, plus a serial-to-Ethernet adapter for the Lake Shore;
      (b) attach the USB-GPIB adapter and the Lake Shore to the container with `usbipd`, which is already installed (fragile, and GPIB needs a Linux driver);
      (c) run the backend natively on Windows using the NI-VISA that is already installed. This breaks the "nothing on the host" rule.
