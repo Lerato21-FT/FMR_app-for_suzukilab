@@ -1,5 +1,13 @@
-# Run from Git Bash on the Windows lab computer (GNU Make 4.4+).
+# GNU Make 4.4+ on the Windows lab computer. Recipes are POSIX sh; on Windows
+# they use Git for Windows' sh, so `make` works from PowerShell, cmd, the VS
+# Code terminal or Git Bash alike.
 SHELL := sh
+ifeq ($(OS),Windows_NT)
+GIT_SH := $(firstword $(wildcard C:/Progra~1/Git/bin/sh.exe C:/Progra~1/Git/usr/bin/sh.exe))
+ifneq ($(GIT_SH),)
+SHELL := $(GIT_SH)
+endif
+endif
 .DEFAULT_GOAL := help
 
 -include .env
