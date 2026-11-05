@@ -6,6 +6,9 @@ ifeq ($(OS),Windows_NT)
 GIT_SH := $(firstword $(wildcard C:/Progra~1/Git/bin/sh.exe C:/Progra~1/Git/usr/bin/sh.exe))
 ifneq ($(GIT_SH),)
 SHELL := $(GIT_SH)
+# Make runs simple commands without the shell, so put Git's POSIX tools
+# (mkdir, touch, curl, sha256sum, ...) on PATH for this make process only.
+export PATH := $(dir $(GIT_SH))../usr/bin;$(PATH)
 endif
 endif
 .DEFAULT_GOAL := help
