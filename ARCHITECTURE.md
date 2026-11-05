@@ -21,8 +21,9 @@ is written outside the repository.
 ## Stack
 
 - Host: Windows 11, Python 3.14 (64-bit, via the `py` launcher), NI-VISA with
-  NI-488.2, Git and GNU Make. These are lab-maintained prerequisites (see
-  AGENTS.md). Make is not yet on the lab computer (TASKS.md, Q1).
+  NI-488.2, Git and GNU Make 4.4 (ezwinports build, installed for the user on
+  2026-11-04 with approval). These are lab-maintained prerequisites (see
+  AGENTS.md). Make is run from Git Bash, which provides `sh`.
 - Backend: FastAPI served by uvicorn on `127.0.0.1`, with typed Pydantic
   request and response models; `/docs` is the contract.
 - Instruments: PyVISA using the NI-VISA backend (`visa64.dll`). It is the
@@ -44,19 +45,24 @@ src/app/
   models.py            Pydantic request/response and settings models
   config.py            reads .env: instrument mode, VISA addresses, limits
   calibration.py       Oe <-> V conversions, modulation RMS field,
-                       gaussmeter scale/offset correction
-  measurement.py       the sweep run engine (background task, skip/stop)
-  storage.py           writes LabVIEW-compatible CSV files
+                       gaussmeter correction, sweep/ramp voltages,
+                       Kittel resonance estimate
+  measurement.py       limit checks and the sweep run engine
+  preview.py           derived values shown before a run
+  storage.py           writes LabVIEW-compatible sweep files
+  hardware_check.py    identifies real instruments (make hardware-check)
   instruments/
     base.py            typed interfaces each driver implements
+    hardware.py        opens the real instruments through PyVISA
     sr830.py           lock-in: reference, sine output, filter, Aux Out, X/θ
     lakeshore425.py    gaussmeter: single field reading
     agilent83640b.py   RF source: CW frequency, power, output on/off
-    magnet.py          Kepco supply driven through SR830 Aux Out
-    stepper.py         TIMS rotation stage (only if still needed, Q4)
+    magnet.py          Kepco supply driven through SR830 Aux Out (ramps)
     simulated.py       simulated instruments with a synthetic FMR line
+    (stepper.py        TIMS rotation stage: not built; only if needed, Q4)
 src/web/               the page: index.html, app.js, styles.css
-tests/YYYY-MM-DD/      pytest, one folder per task day (see AGENTS.md)
+tests/YYYY-MM-DD/      pytest, one folder per task day (see AGENTS.md);
+                       tests/2026-11-04/smoke_check.py is run by make smoke
 notes/                 daily implementation records, named YYYY-MM-DD.md
 docs/                  decisions worth remembering, one short file each
 data/measurements/     gitignored; saved sweeps
@@ -81,7 +87,13 @@ pyproject.toml  requirements.lock  .gitignore  .env.example
   follows Aux Out through the calibration. This lets the whole run engine and
   page be tested without hardware.
 - Drivers send instrument commands only. They do not decide limits or
-  sequence; `measurement.py` does.
+  sequence; `measurement.py` does. Driver tests check the exact command
+  strings against a fake VISA resource.
+- The SR830 is never sent `*RST`, because it zeroes the Aux outputs and would
+  step the magnet instead of ramping it. The magnet ramp starts from the Aux
+  Out voltage read back from the lock-in.
+- PyVISA is imported only when the hardware lab is opened, so simulated mode
+  never loads NI-VISA.
 
 ## Measurement engine
 
@@ -98,7 +110,15 @@ pyproject.toml  requirements.lock  .gitignore  .env.example
 - Skip ends the current frequency and moves to the next. Stop ends the run
   after the safe shutdown. A `try/finally` guarantees the shutdown (RF off,
   modulation off, field ramped down) on every exit path, including driver
-  errors. Errors are recorded on the run and returned by the API.
+  errors. Each shutdown step is attempted even if an earlier one fails; every
+  failure is logged and listed in `shutdown_errors`, and the run is `failed`.
+- The points of a skipped, stopped or failed sweep are saved too; the sweep's
+  `state` says which.
+- The run executes in a thread, because VISA I/O blocks. The runner keeps one
+  lab open, allows one active run, and keeps the last 20 runs in memory. A
+  restart forgets past runs, but their files remain. While a run is active,
+  `/api/instruments` returns the identities cached at its start rather than
+  talking to busy instruments.
 - Settings are checked against the limits in `config.py` before the run
   starts. Values are pending (TASKS.md, Q8).
 
@@ -126,15 +146,20 @@ not constants in code:
 
 ## API
 
+- `GET /api/settings/defaults`: default `RunSettings`, resonance-estimate
+  guesses, active limits and instrument mode.
+- `POST /api/preview`: field range and step, points per sweep, modulation
+  field, estimated duration, resonance estimates, file names and limit
+  problems for given settings, so the page shows them without calculating.
 - `GET /api/instruments`: mode, configured addresses and identification
   strings.
-- `POST /api/runs`: start a run from `RunSettings` (HTTP 409 if one is
-  active, 422 if invalid or out of limits).
-- `GET /api/runs/{run_id}?since=N`: state, current frequency and step, error,
-  and the data points after index `N`, for live plotting by polling.
-- `POST /api/runs/{run_id}/skip`, `POST /api/runs/{run_id}/stop`.
-- `GET /api/calibration/preview`: field and modulation values for given
-  settings, so the page can show them without calculating them.
+- `POST /api/runs`: start a run from `RunSettings` (HTTP 201; 409 if one is
+  active; 422 if invalid, out of limits, or a file name is taken).
+- `GET /api/runs/latest`: the most recent run, so a reloaded page resumes.
+- `GET /api/runs/{run_id}?since=N`: state, sweeps, error, shutdown errors and
+  the data points after index `N`, for live plotting by polling.
+- `POST /api/runs/{run_id}/skip`, `POST /api/runs/{run_id}/stop` (HTTP 202).
+- Models forbid unknown fields and non-finite numbers.
 
 ## Browser
 
@@ -149,13 +174,15 @@ not constants in code:
 - `install`: create `.venv/` with `py -3.14` and install `requirements.lock`.
   `vendor`: fetch the pinned Plotly file and check its hash.
 - `run`: start the app on `127.0.0.1:${FMR_PORT:-8765}`; Ctrl+C stops it.
-- `verify`: lint, test, smoke and browser, with simulated instruments. Must
-  pass from a fresh clone with only the host prerequisites installed.
+- `verify`: lint, test and smoke, with simulated instruments. Must pass from
+  a fresh clone with only the host prerequisites installed.
 - `test` (`TEST_PATHS` selects files), `lint` (Ruff, changes nothing), `fmt`.
-- `smoke`: start the app in simulated mode, run a short sweep through the API,
-  check the returned data, and stop the app.
-- `browser`: Playwright and Chromium inside `.venv/` and `.cache/`, checking
-  the page at desktop and mobile widths.
+- `smoke`: start the app with uvicorn in simulated mode, check the page and
+  Plotly are served, run a short sweep over HTTP, check the returned data and
+  saved file (under `.cache/smoke-data/`), and stop the app.
+- `browser` (planned, not built yet): Playwright and Chromium inside
+  `.venv/` and `.cache/`, checking the page at desktop and mobile widths.
+  It will join `verify` when built.
 - `hardware-check`: only when asked, identify each real instrument (`*IDN?`
   and equivalents) without changing any output.
 - `lock`: after changing `pyproject.toml`, regenerate `requirements.lock`.

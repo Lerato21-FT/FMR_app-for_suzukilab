@@ -4,7 +4,7 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
    - Findings and the proposed plan are in `notes/2026-11-03.md`.
 
 2. **[QUEUED — blocked on questions]** Answer the open questions below and approve (or amend) the plan in `notes/2026-11-03.md`. Every question must be answered before task 3 starts.
-   - **Q1. GNU Make is not installed on this PC.** AGENTS.md requires every command to run through the Makefile, and `make verify` is the gate. Do we approve installing GNU Make on the host, or use another approach?
+   - **Q1. [ANSWERED 2026-11-04]** Approved; GNU Make 4.4.1 (ezwinports) is installed for the user with winget. Run make from Git Bash. Original question: **GNU Make is not installed on this PC.** AGENTS.md requires every command to run through the Makefile, and `make verify` is the gate. Do we approve installing GNU Make on the host, or use another approach?
    - **Q2. [ANSWERED 2026-11-04: option (c)]** The app runs natively on the Windows lab computer with PyVISA over NI-VISA; Docker is not used. AGENTS.md and ARCHITECTURE.md are updated. Still open: which GPIB interface (make and model) is in the lab. Original question: **How does the Docker container reach the instruments?** Docker Desktop on Windows cannot see GPIB or the Lake Shore on COM3. Options:
      (a) a GPIB-to-Ethernet adapter (e.g. Prologix GPIB-ETHERNET or Keysight E5810), so the container talks to the instruments over the network, plus a serial-to-Ethernet adapter for the Lake Shore;
      (b) attach the USB-GPIB adapter and the Lake Shore to the container with `usbipd`, which is already installed (fragile, and GPIB needs a Linux driver);
@@ -17,11 +17,11 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
    - **Q7. Initial commit contents.** Should `Labview_fmr/`, PROMPT.md and the other pre-existing files be committed? Should `.DS_Store` be gitignored?
    - **Q8. Safety limits.** What are the maximum field, Aux Out voltage, ramp rate and RF power the app must never exceed?
 
-3. **[QUEUED]** Build the project skeleton and simulated instruments. Create `docker/`, update the Makefile and `.env.example`, and add the FastAPI app with simulated SR830, Lake Shore 425, 83640B and Kepco-via-Aux-Out drivers. Add the calibration module (Oe↔V, modulation RMS) with tests in `tests/<date>/`, showing a test failing once before it passes. `make verify` must be green.
+3. **[COMPLETE 2026-11-04]** Build the project skeleton and simulated instruments. Docker was dropped (Q2), so this became a native Makefile with `.venv/`, `pyproject.toml` and `requirements.lock`. It also covers the FastAPI app, real and simulated drivers for the SR830, Lake Shore 425, 83640B and Kepco-via-Aux-Out, and the calibration module. Tests are in `tests/2026-11-04/`; the resonance test was shown failing on a wrong formula before it passed. `make verify` is green. See `notes/2026-11-04.md`.
 
-4. **[QUEUED]** Measurement engine. Implement the field sweep as a cancellable background task: set RF, ramp up, saturate, step Aux Out, read H, X and θ, ramp down, save. Add Skip and Stop, and always ramp the field down on errors. Save CSVs in the LabVIEW-compatible format. Test it end to end against the simulated instruments.
+4. **[COMPLETE in simulation 2026-11-04; hardware pending task 6]** Measurement engine. The field sweep is a cancellable background task: set RF, ramp up, saturate, step Aux Out, read H, X and θ, ramp down, save. Skip and Stop are in, and the field always ramps down on errors. Sweeps are saved in the LabVIEW-compatible format. It is tested end to end against the simulated instruments.
 
-5. **[QUEUED]** API and web page. Add validated endpoints to start, skip, stop and check runs, plus a live data stream. The page gets a settings form and live plots of signal and phase against H, and browser checks.
+5. **[PARTLY DONE 2026-11-04]** API and web page. Done: validated endpoints (defaults, preview, instruments, start/skip/stop/status, latest), the settings form, the preview, and live plots of signal and phase against H, polling every 0.5 s. **Remaining:** Playwright browser checks (`make browser`) at desktop and mobile widths, added to `make verify`. The page has not been opened in a browser yet.
 
 6. **[QUEUED]** Real hardware drivers. Implement and bench-test the drivers against the actual instruments, using the access route chosen in Q2. Add the stepper motor if needed (Q4).
 
