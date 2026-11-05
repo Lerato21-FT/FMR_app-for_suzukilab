@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FMR acquisition</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="vendor/plotly.min.js" defer></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>FMR acquisition</h1>
+    <span id="mode" class="badge">…</span>
+    <button id="identify" type="button">Identify instruments</button>
+  </header>
+  <p id="instruments" class="muted"></p>
+
+  <main>
+    <form id="settings" novalidate>
+      <fieldset>
+        <legend>Sweep</legend>
+        <label>Frequencies (GHz, comma separated)
+          <input name="frequencies_ghz" type="text" required></label>
+        <label>RF power (dBm) <input name="rf_power_dbm" type="number" step="any"></label>
+        <label>Orientation
+          <select name="orientation">
+            <option value="in_plane">In-plane</option>
+            <option value="out_of_plane">Out-of-plane</option>
+          </select></label>
+        <label>Angle (deg, file name only) <input name="angle_deg" type="number" step="any"></label>
+        <label>Aux Out begin (V) <input name="aux_begin_v" type="number" step="any"></label>
+        <label>Aux Out end (V) <input name="aux_end_v" type="number" step="any"></label>
+        <label>Aux Out step (V) <input name="aux_step_v" type="number" step="any"></label>
+        <label>Wait per step (ms) <input name="step_wait_ms" type="number" step="1"></label>
+        <label>File prefix <input name="file_prefix" type="text"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Field ramp</legend>
+        <label>Ramp step (V) <input name="ramp_step_v" type="number" step="any"></label>
+        <label>Ramp wait (ms) <input name="ramp_wait_ms" type="number" step="1"></label>
+        <label>Saturate wait (ms) <input name="saturate_wait_ms" type="number" step="1"></label>
+        <label>Wait at zero (ms) <input name="zero_wait_ms" type="number" step="1"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Lock-in and modulation</legend>
+        <label>Reference frequency (Hz) <input name="lockin.reference_frequency_hz" type="number" step="any"></label>
+        <label>Sine amplitude (V rms) <input name="lockin.sine_amplitude_v" type="number" step="any"></label>
+        <label>Time constant index <input name="lockin.time_constant_index" type="number" step="1"></label>
+        <label>Sensitivity index <input name="lockin.sensitivity_index" type="number" step="1"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Calibration</legend>
+        <label>Field per Aux volt (Oe/V) <input name="calibration.field_per_volt_oe" type="number" step="any"></label>
+        <label><input name="calibration.aux_output_inverted" type="checkbox"> Aux Out inverted</label>
+        <label>Gaussmeter scale <input name="calibration.gaussmeter_scale" type="number" step="any"></label>
+        <label>Gaussmeter offset (Oe) <input name="calibration.gaussmeter_offset_oe" type="number" step="any"></label>
+        <label>Modulation (Oe/V rms) <input name="calibration.modulation_oe_per_volt" type="number" step="any"></label>
+      </fieldset>
+      <fieldset>
+        <legend>Resonance estimate</legend>
+        <label>γ (MHz/Oe) <input name="estimate.gamma_mhz_per_oe" type="number" step="any"></label>
+        <label>Meff (emu/cc) <input name="estimate.meff_emu_cc" type="number" step="any"></label>
+      </fieldset>
+    </form>
+
+    <section id="preview-panel" aria-live="polite">
+      <h2>Preview</h2>
+      <dl id="preview"></dl>
+      <ul id="preview-errors" class="errors"></ul>
+      <div class="controls">
+        <button id="start" type="button">Measure</button>
+        <button id="skip" type="button" disabled>Skip current</button>
+        <button id="stop" type="button" disabled>Stop all</button>
+      </div>
+      <p id="run-status" class="muted">No run yet.</p>
+      <ul id="run-errors" class="errors"></ul>
+      <label>Show sweep <select id="sweep-select"></select></label>
+    </section>
+
+    <section class="plots">
+      <div id="signal-plot" class="plot"></div>
+      <div id="phase-plot" class="plot"></div>
+    </section>
+  </main>
+</body>
+</html>
