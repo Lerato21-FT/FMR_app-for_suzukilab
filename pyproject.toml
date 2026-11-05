@@ -1,0 +1,43 @@
+[project]
+name = "fmr-acquisition"
+version = "0.1.0"
+description = "Local web app that runs lock-in detected, field-swept FMR measurements."
+requires-python = ">=3.14,<3.15"
+dependencies = [
+    # Typed HTTP API with request validation and an OpenAPI contract.
+    "fastapi>=0.115",
+    # ASGI server that serves the app on 127.0.0.1.
+    "uvicorn>=0.32",
+    # Standard Python interface to NI-VISA for the GPIB and serial instruments.
+    "pyvisa>=1.14",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    # Required by FastAPI's TestClient.
+    "httpx>=0.27",
+    "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "--import-mode=importlib -q"
+
+[tool.ruff]
+line-length = 88
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "N", "S", "ANN", "D", "RUF"]
+ignore = ["D203", "D213"]
+# Physics notation in docstrings and comments.
+allowed-confusables = ["γ", "−", "θ"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "ANN", "D", "S310", "N999"]
