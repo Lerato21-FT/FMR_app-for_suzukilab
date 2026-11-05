@@ -23,7 +23,7 @@ is written outside the repository.
 - Host: Windows 11, Python 3.14 (64-bit, via the `py` launcher), NI-VISA with
   NI-488.2, Git and GNU Make 4.4 (ezwinports build, installed for the user on
   2026-11-04 with approval). These are lab-maintained prerequisites (see
-  AGENTS.md). Make is run from Git Bash, which provides `sh`.
+  AGENTS.md). Recipes use Git for Windows' `sh`.
 - Backend: FastAPI served by uvicorn on `127.0.0.1`, with typed Pydantic
   request and response models; `/docs` is the contract.
 - Instruments: PyVISA using the NI-VISA backend (`visa64.dll`). It is the
@@ -189,5 +189,7 @@ not constants in code:
 - `review`, `fresh-verify` (clone the committed branch into `.cache/` and
   run `verify`), `clean` (remove `.venv/`, caches and generated files; keep
   `data/` and `.env`).
-- The Makefile runs under Git Bash (`/bin/sh`) on Windows and calls the
-  environment's Python as `.venv/Scripts/python.exe`.
+- On Windows the Makefile sets `SHELL` to Git for Windows' `sh.exe` and puts
+  Git's `usr/bin` on `PATH` for the make process. As a result, `make` works
+  the same from PowerShell, cmd, the VS Code terminal or Git Bash. It calls
+  the environment's Python as `.venv/Scripts/python.exe`.

@@ -29,7 +29,11 @@ project:
 - Git, which includes Git Bash.
 - GNU Make 4.4 or later.
 
-Run every command from **Git Bash** in the repository folder. Python packages
+Run `make` in the repository folder from any terminal: PowerShell, the VS
+Code terminal, cmd or Git Bash. The Makefile finds Git for Windows' `sh`
+itself. If `make` is "not recognized", the terminal was opened before Make
+was installed: close it and open a new one. For VS Code, quit and restart
+VS Code entirely. Python packages
 go only into the repository's `.venv/`, at the exact versions in
 `requirements.lock`, and tool caches stay in `.cache/`. Nothing is written
 outside the repository.
