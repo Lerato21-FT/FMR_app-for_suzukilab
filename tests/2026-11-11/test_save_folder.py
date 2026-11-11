@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api import create_app
-from app.config import AppConfig
+from app.config import PROJECT_ROOT, AppConfig
 from app.instruments.simulated import create_simulated_lab
 from app.measurement import MeasurementRunner
 from app.models import DataPoint, Limits, RunSettings
@@ -86,18 +86,32 @@ def test_run_saves_into_the_chosen_folder(tmp_path):
     assert len(saved.read_text().splitlines()) == status.sweeps[0].point_count
 
 
-def test_api_rejects_an_escaping_folder(tmp_path):
-    config = AppConfig(
+def _config(data_dir):
+    return AppConfig(
         instrument_mode="simulated",
         sr830_address="GPIB0::8::INSTR",
         rf_source_address="GPIB0::19::INSTR",
         lakeshore_address="ASRL3::INSTR",
         magnet_aux_channel=1,
-        data_dir=tmp_path,
+        data_dir=data_dir,
         limits=Limits(),
     )
+
+
+def test_defaults_report_where_folders_are_created(tmp_path):
+    inside = _config(PROJECT_ROOT / "data" / "measurements")
+    with TestClient(create_app(inside)) as client:
+        body = client.get("/api/settings/defaults").json()
+    assert body["data_dir"] == "data/measurements"
+    assert body["settings"]["save_folder"] == ""
+    with TestClient(create_app(_config(tmp_path))) as client:
+        body = client.get("/api/settings/defaults").json()
+    assert body["data_dir"] == tmp_path.resolve().as_posix()
+
+
+def test_api_rejects_an_escaping_folder(tmp_path):
     sim = create_simulated_lab()
-    app = create_app(config, lambda: sim.lab, sleep=lambda _s: None)
+    app = create_app(_config(tmp_path), lambda: sim.lab, sleep=lambda _s: None)
     with TestClient(app) as client:
         response = client.post("/api/runs", json={**FAST, "save_folder": "../x"})
     assert response.status_code == 422

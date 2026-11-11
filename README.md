@@ -45,7 +45,8 @@ cp .env.example .env    # optional: port, instrument mode, addresses, limits
 make run                # creates .venv, installs the lock, fetches Plotly, starts
 ```
 
-Open <http://127.0.0.1:8766>. Ctrl+C stops the app. The API contract is at
+Open <http://127.0.0.1:8766>. Ctrl+C stops the app. `make run-sim` starts
+it with simulated instruments even when `.env` selects hardware. The API contract is at
 <http://127.0.0.1:8766/docs>.
 
 By default the app uses **simulated instruments**. They produce a synthetic
@@ -63,16 +64,28 @@ without changing any output. Use it before your first real run.
 
 ## Taking a measurement
 
-1. Enter the frequencies (GHz, comma separated), RF power, the **field
-   range** and **field step** (Oe), the **modulation field** (Oe rms), the
-   g-factor and Meff, and the waits.
+The page is laid out like the LabVIEW front panel, in four quadrants:
+
+| | |
+|---|---|
+| **Data**: signal and phase against H | **Instrument setup**: tabs *H field setup*, *A83640B*, *SR830*, *Stepper Motor* |
+| **Measurement list**: frequencies, orientation, angle, field range and step, save folder | **Run**: Measure / Skip / Stop All, status and the preview |
+
+On a narrow window the quadrants stack.
+
+1. In **Measurement list**, enter the frequencies (GHz, separated by commas,
+   spaces or new lines), the orientation, the angle (used only in the file
+   name until the stepper motor is ported), the **field range** and **field
+   step** (Oe), and the **save folder**. In the instrument tabs, set the RF
+   power (*A83640B*), the **modulation field** in Oe rms (*SR830*), and the
+   g-factor, Meff, calibration and waits (*H field setup*).
    Each frequency gets its own sweep, centred on its Kittel resonance
    estimate `Hres` and run from `Hres + range/2` down to `Hres − range/2`.
    For example, a 1000 Oe range around `Hres = 1500 Oe` sweeps from 2000 Oe
    to 1000 Oe. The supply is bipolar, so a sweep may cross zero.
-2. Check the **Preview**:
-   - for each frequency, `Hres` and the start and end field and Aux Out
-     voltage, with the point count;
+2. Check the preview in the **Run** quadrant:
+   - a table row per frequency with `Hres`, the start and end field, the
+     point count and the file it will be saved to;
    - the field step after rounding to 1 mV of Aux Out;
    - the modulation field you set (Oe rms), as the sine amplitude the
      backend will send and the field that amplitude actually gives;
@@ -86,19 +99,24 @@ without changing any output. Use it before your first real run.
    - steps Aux Out, reading the corrected field and X/θ at every step;
    - turns the modulation and RF off, ramps the field to zero and saves the
      sweep.
-4. **Skip current** ends the current frequency and moves to the next.
-   **Stop all** ends the run.
+4. **Skip** ends the current frequency and moves to the next.
+   **Stop All** ends the run.
 5. Whenever a run ends, however it ends, the app turns RF and modulation off
    and ramps the field down. This includes an instrument error. Any problem
    during that shutdown is shown on the page.
 
 Plots of signal and phase against the measured field update every half
-second. Use **Show sweep** to look at earlier frequencies of the run.
+second. Use **Sweep** above the plots to look at earlier frequencies of the
+run.
 
 ## Saved data
 
-Each sweep is saved in `data/measurements/` (gitignored; set with
-`FMR_DATA_DIR`, which must stay inside the repository):
+Each sweep is saved in `data/measurements/<save folder>/` (gitignored). The
+base directory is set with `FMR_DATA_DIR`, which must stay inside the
+repository. The save folder is a relative name such as `2026-11-11_CoFeB`
+or `CoFeB/run_2`. Leave it empty to save in the base directory. Names with
+`..`, a drive letter, a leading `/` or a `\` are refused, so data can never
+be written outside the repository.
 
 - **Name:** the LabVIEW pattern, for example
   `fmr-10000MHz-In-plane-000.0deg-+0dBm2.1OeRMS-.csv`.

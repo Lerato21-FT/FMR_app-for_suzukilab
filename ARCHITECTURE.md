@@ -71,7 +71,33 @@ Makefile  README.md  ARCHITECTURE.md  AGENTS.md  CLAUDE.md
   peak-to-peak linewidth; these initialize fits, not fixed results.
   The perpendicular model returns no four-fold term (`null` in the API).
 
+## Acquisition page
+
+`src/web/` is one page that fills the window as four quadrants, modelled
+on the LabVIEW front panel (`Labview_fmr/`). A single `<form>` spans all
+four, so every named input is part of `RunSettings`.
+
+| Quadrant | Contents |
+|---|---|
+| Top left: Data | Signal X and phase θ against H, with a sweep selector |
+| Top right: instrument setup | Tabs named as in the VI: **H field setup** (ramp, waits, H conversion, H read scale/offset, invert Vaux, Kittel g and Meff), **A83640B** (RF power), **SR830** (reference, time constant, sensitivity, modulation field and coil constant), **Stepper Motor** (placeholder until Q4 and task 6) |
+| Bottom left: measurement list | Frequencies (comma, space or newline separated), orientation, angle (file name only), field range and step, save folder and file prefix |
+| Bottom right: run | Measure / Skip / Stop All, run status and errors, the backend preview as a table (Hres, sweep, points and file path per frequency) |
+
+Below 900 px the quadrants stack and the page scrolls. The save folder is a
+relative name (`RunSettings.save_folder`, up to four `/`-separated parts).
+The API rejects `..`, absolute paths, drive letters, backslashes and Windows
+device names. `SweepStore` also refuses any path that resolves outside
+the data directory, so measurement data stays inside the repository.
+`GET /api/settings/defaults` reports that data directory for the page to show.
+`tests/2026-11-11/test_page_layout.py` checks the quadrants, the tab names, and
+that every run setting and every element the script uses exists. The page has
+not been checked in a real browser yet (task 5, `make browser`).
+
 ## Browser
+
+The rest of this section describes the earlier analysis app and is rewritten
+in task 7.
 
 - Geometry controls select upload/analysis API settings. Switching to a
   different geometry requires a matching folder; old plots are hidden until

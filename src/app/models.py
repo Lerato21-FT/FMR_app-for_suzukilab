@@ -234,6 +234,10 @@ class Defaults(StrictModel):
     settings: RunSettings
     limits: Limits
     instrument_mode: Literal["simulated", "hardware"]
+    data_dir: str = Field(
+        description="Where save_folder is created: relative to the repository "
+        "when inside it (e.g. 'data/measurements'), otherwise absolute."
+    )
 
 
 class RunState(StrEnum):

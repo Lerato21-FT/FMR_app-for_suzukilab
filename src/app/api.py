@@ -9,7 +9,7 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
 
-from app.config import AppConfig
+from app.config import PROJECT_ROOT, AppConfig
 from app.instruments.base import Lab
 from app.instruments.simulated import create_simulated_lab
 from app.measurement import MeasurementRunner, RunConflictError, RunSettingsError
@@ -65,10 +65,14 @@ def create_app(
     @app.get("/api/settings/defaults")
     def get_defaults() -> Defaults:
         """Default run settings and the active safety limits."""
+        data_dir = config.data_dir.resolve()
+        if data_dir.is_relative_to(PROJECT_ROOT):
+            data_dir = data_dir.relative_to(PROJECT_ROOT)
         return Defaults(
             settings=RunSettings(),
             limits=runner.limits,
             instrument_mode=config.instrument_mode,
+            data_dir=data_dir.as_posix(),
         )
 
     @app.post("/api/preview")

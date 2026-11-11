@@ -36,13 +36,14 @@ export UV_CACHE_DIR := $(CURDIR)/.cache/uv
 export PIP_DISABLE_PIP_VERSION_CHECK := 1
 export PYTHONDONTWRITEBYTECODE := 1
 
-.PHONY: help install lock vendor run test lint fmt smoke verify hardware-check review fresh-verify clean
+.PHONY: help install lock vendor run run-sim test lint fmt smoke verify hardware-check review fresh-verify clean
 
 help:
 	@printf '%s\n' \
 	'Everyday:' \
 	'  install         Create .venv and install the locked dependencies' \
 	'  run             Start the app at http://127.0.0.1:$(FMR_PORT) (Ctrl+C stops it)' \
+	'  run-sim         Same, but always with simulated instruments (ignores .env mode)' \
 	'  verify          Lint, tests and API smoke check (simulated instruments)' \
 	'  clean           Remove .venv, caches and generated files (keeps data/ and .env)' \
 	'' \
@@ -87,6 +88,9 @@ vendor: $(VENDOR)
 
 run: install vendor
 	$(PY) -m uvicorn app.api:app --app-dir src --host 127.0.0.1 --port $(FMR_PORT)
+
+run-sim: install vendor
+	FMR_INSTRUMENTS=simulated $(PY) -m uvicorn app.api:app --app-dir src --host 127.0.0.1 --port $(FMR_PORT)
 
 test: install
 	FMR_INSTRUMENTS=simulated $(PY) -m pytest $(TEST_PATHS)

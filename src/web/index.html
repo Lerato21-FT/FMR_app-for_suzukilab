@@ -12,75 +12,151 @@
   <header>
     <h1>FMR acquisition</h1>
     <span id="mode" class="badge">…</span>
-    <button id="identify" type="button">Identify instruments</button>
+    <button id="identify" type="button" class="secondary">Identify instruments</button>
+    <span id="instruments" class="muted"></span>
   </header>
-  <p id="instruments" class="muted"></p>
 
-  <main>
-    <form id="settings" novalidate>
-      <fieldset>
-        <legend>Sweep</legend>
-        <label>Frequencies (GHz, comma separated)
-          <input name="frequencies_ghz" type="text" required></label>
-        <label>RF power (dBm) <input name="rf_power_dbm" type="number" step="any"></label>
+  <!-- Four quadrants, laid out like the LabVIEW front panel. One form spans
+       them all so every named input is part of the run settings. -->
+  <form id="settings" class="quadrants" novalidate>
+
+    <!-- 1. Data plots -->
+    <section class="quadrant" id="q-plots" aria-labelledby="q-plots-title">
+      <div class="quadrant-head">
+        <h2 id="q-plots-title">Data</h2>
+        <label class="inline">Sweep <select id="sweep-select"></select></label>
+      </div>
+      <div class="plots">
+        <div id="signal-plot" class="plot"></div>
+        <div id="phase-plot" class="plot"></div>
+      </div>
+    </section>
+
+    <!-- 2. Instrument setup, tabbed like the VI -->
+    <section class="quadrant" id="q-instruments" aria-labelledby="q-instruments-title">
+      <h2 id="q-instruments-title" class="visually-hidden">Instrument setup</h2>
+      <div class="tabs" role="tablist" aria-label="Instrument setup">
+        <button type="button" role="tab" id="tab-field" aria-controls="panel-field" aria-selected="true">H field setup</button>
+        <button type="button" role="tab" id="tab-rf" aria-controls="panel-rf" aria-selected="false" tabindex="-1">A83640B</button>
+        <button type="button" role="tab" id="tab-lockin" aria-controls="panel-lockin" aria-selected="false" tabindex="-1">SR830</button>
+        <button type="button" role="tab" id="tab-stepper" aria-controls="panel-stepper" aria-selected="false" tabindex="-1">Stepper Motor</button>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-field" aria-labelledby="tab-field">
+        <fieldset>
+          <legend>Field ramp (Kepco via SR830 Aux Out)</legend>
+          <div class="grid">
+            <label>Ramp step (V) <input name="ramp_step_v" type="number" step="any"></label>
+            <label>Ramp wait (ms) <input name="ramp_wait_ms" type="number" step="1"></label>
+            <label>Saturate wait (ms) <input name="saturate_wait_ms" type="number" step="1"></label>
+            <label>Wait at zero (ms) <input name="zero_wait_ms" type="number" step="1"></label>
+            <label>Wait per step (ms) <input name="step_wait_ms" type="number" step="1"></label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>H conversion and read-back</legend>
+          <div class="grid">
+            <label>H conversion (Oe/V) <input name="calibration.field_per_volt_oe" type="number" step="any"></label>
+            <label>H read scale <input name="calibration.gaussmeter_scale" type="number" step="any"></label>
+            <label>H read offset (Oe) <input name="calibration.gaussmeter_offset_oe" type="number" step="any"></label>
+            <label class="check"><input name="calibration.aux_output_inverted" type="checkbox"> Invert Vaux output</label>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Hfmr guess (Kittel), centres each sweep</legend>
+          <div class="grid">
+            <label>g-factor <input name="resonance.g_factor" type="number" step="any"></label>
+            <label>Meff (emu/cc) <input name="resonance.meff_emu_cc" type="number" step="any"></label>
+          </div>
+        </fieldset>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-rf" aria-labelledby="tab-rf" hidden>
+        <fieldset>
+          <legend>Agilent 83640B RF source</legend>
+          <div class="grid">
+            <label>RF power (dBm) <input name="rf_power_dbm" type="number" step="any"></label>
+          </div>
+          <p class="muted">CW mode. Frequencies are set in the measurement list. RF turns off at the end of every run.</p>
+        </fieldset>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-lockin" aria-labelledby="tab-lockin" hidden>
+        <fieldset>
+          <legend>SR830 lock-in and modulation</legend>
+          <div class="grid">
+            <label>Reference frequency (Hz) <input name="lockin.reference_frequency_hz" type="number" step="any"></label>
+            <label>Time constant index <input name="lockin.time_constant_index" type="number" step="1"></label>
+            <label>Sensitivity index <input name="lockin.sensitivity_index" type="number" step="1"></label>
+            <label>Modulation field (Oe rms) <input name="modulation_field_oe_rms" type="number" step="any"></label>
+            <label>Modulation H scale (Oe/V rms) <input name="calibration.modulation_oe_per_volt" type="number" step="any"></label>
+          </div>
+          <p class="muted">Sine drive the run will use: <output id="sine-drive">…</output></p>
+        </fieldset>
+      </div>
+
+      <div class="tab-panel" role="tabpanel" id="panel-stepper" aria-labelledby="tab-stepper" hidden>
+        <fieldset>
+          <legend>TIMS stepper motor (sample rotation)</legend>
+          <p class="muted">Not ported yet (TASKS.md Q4 and task 6). Rotate the sample by hand and enter
+            the angle in the measurement list. The angle is used only in the file name.</p>
+        </fieldset>
+      </div>
+    </section>
+
+    <!-- 3. What to measure and where to save it -->
+    <section class="quadrant" id="q-list" aria-labelledby="q-list-title">
+      <h2 id="q-list-title">Measurement list</h2>
+      <div class="grid list-grid">
+        <label class="span-rows">Frequencies (GHz)
+          <textarea name="frequencies_ghz" rows="6" spellcheck="false"
+            aria-describedby="freq-hint"></textarea>
+          <small id="freq-hint" class="muted">Separate with commas, spaces or new lines.</small>
+        </label>
         <label>Orientation
           <select name="orientation">
             <option value="in_plane">In-plane</option>
             <option value="out_of_plane">Out-of-plane</option>
           </select></label>
-        <label>Angle (deg, file name only) <input name="angle_deg" type="number" step="any"></label>
-        <label>Field range (Oe, centred on each Hres) <input name="field_range_oe" type="number" step="any"></label>
+        <label>Angle (deg) <input name="angle_deg" type="number" step="any"></label>
+        <label>Field range (Oe) <input name="field_range_oe" type="number" step="any"></label>
         <label>Field step (Oe) <input name="field_step_oe" type="number" step="any"></label>
-        <label>Wait per step (ms) <input name="step_wait_ms" type="number" step="1"></label>
-        <label>File prefix <input name="file_prefix" type="text"></label>
-      </fieldset>
-      <fieldset>
-        <legend>Field ramp</legend>
-        <label>Ramp step (V) <input name="ramp_step_v" type="number" step="any"></label>
-        <label>Ramp wait (ms) <input name="ramp_wait_ms" type="number" step="1"></label>
-        <label>Saturate wait (ms) <input name="saturate_wait_ms" type="number" step="1"></label>
-        <label>Wait at zero (ms) <input name="zero_wait_ms" type="number" step="1"></label>
-      </fieldset>
-      <fieldset>
-        <legend>Lock-in and modulation</legend>
-        <label>Reference frequency (Hz) <input name="lockin.reference_frequency_hz" type="number" step="any"></label>
-        <label>Modulation field (Oe rms) <input name="modulation_field_oe_rms" type="number" step="any"></label>
-        <label>Time constant index <input name="lockin.time_constant_index" type="number" step="1"></label>
-        <label>Sensitivity index <input name="lockin.sensitivity_index" type="number" step="1"></label>
-      </fieldset>
-      <fieldset>
-        <legend>Calibration</legend>
-        <label>Field per Aux volt (Oe/V) <input name="calibration.field_per_volt_oe" type="number" step="any"></label>
-        <label><input name="calibration.aux_output_inverted" type="checkbox"> Aux Out inverted</label>
-        <label>Gaussmeter scale <input name="calibration.gaussmeter_scale" type="number" step="any"></label>
-        <label>Gaussmeter offset (Oe) <input name="calibration.gaussmeter_offset_oe" type="number" step="any"></label>
-        <label>Modulation (Oe/V rms) <input name="calibration.modulation_oe_per_volt" type="number" step="any"></label>
-      </fieldset>
-      <fieldset>
-        <legend>Resonance (Kittel), centres each sweep</legend>
-        <label>g-factor <input name="resonance.g_factor" type="number" step="any"></label>
-        <label>Meff (emu/cc) <input name="resonance.meff_emu_cc" type="number" step="any"></label>
-      </fieldset>
-    </form>
-
-    <section id="preview-panel" aria-live="polite">
-      <h2>Preview</h2>
-      <dl id="preview"></dl>
-      <ul id="preview-errors" class="errors"></ul>
-      <div class="controls">
-        <button id="start" type="button">Measure</button>
-        <button id="skip" type="button" disabled>Skip current</button>
-        <button id="stop" type="button" disabled>Stop all</button>
       </div>
-      <p id="run-status" class="muted">No run yet.</p>
-      <ul id="run-errors" class="errors"></ul>
-      <label>Show sweep <select id="sweep-select"></select></label>
+      <fieldset>
+        <legend>Save</legend>
+        <div class="grid">
+          <label class="span-2">Folder
+            <span class="path-input"><span id="data-dir" class="muted">data/measurements</span>/<input
+              name="save_folder" type="text" placeholder="e.g. 2026-11-11_CoFeB" spellcheck="false"></span>
+          </label>
+          <label>File prefix <input name="file_prefix" type="text" spellcheck="false"></label>
+        </div>
+      </fieldset>
     </section>
 
-    <section class="plots">
-      <div id="signal-plot" class="plot"></div>
-      <div id="phase-plot" class="plot"></div>
+    <!-- 4. Run control, preview and status -->
+    <section class="quadrant" id="q-run" aria-labelledby="q-run-title" aria-live="polite">
+      <div class="quadrant-head">
+        <h2 id="q-run-title">Run</h2>
+        <div class="controls">
+          <button id="start" type="button">Measure</button>
+          <button id="skip" type="button" disabled>Skip</button>
+          <button id="stop" type="button" disabled>Stop All</button>
+        </div>
+      </div>
+      <p id="run-status" class="status">No run yet.</p>
+      <ul id="run-errors" class="errors"></ul>
+      <ul id="preview-errors" class="errors"></ul>
+      <dl id="preview-summary" class="summary"></dl>
+      <div class="table-wrap">
+        <table id="preview-table">
+          <thead>
+            <tr><th>f (GHz)</th><th>Hres (Oe)</th><th>Sweep (Oe)</th><th>Points</th><th>File</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
     </section>
-  </main>
+  </form>
 </body>
 </html>

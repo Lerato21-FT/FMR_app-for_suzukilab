@@ -7,8 +7,11 @@ const els = {
   mode: document.getElementById("mode"),
   instruments: document.getElementById("instruments"),
   identify: document.getElementById("identify"),
-  preview: document.getElementById("preview"),
+  previewSummary: document.getElementById("preview-summary"),
+  previewRows: document.querySelector("#preview-table tbody"),
   previewErrors: document.getElementById("preview-errors"),
+  sineDrive: document.getElementById("sine-drive"),
+  dataDir: document.getElementById("data-dir"),
   start: document.getElementById("start"),
   skip: document.getElementById("skip"),
   stop: document.getElementById("stop"),
@@ -56,7 +59,7 @@ function readForm() {
     let value;
     if (input.type === "checkbox") value = input.checked;
     else if (input.name === "frequencies_ghz") {
-      value = input.value.split(",").map((s) => s.trim()).filter(Boolean).map(Number);
+      value = input.value.split(/[\s,;]+/).filter(Boolean).map(Number);
     } else if (input.type === "number") value = input.value === "" ? null : Number(input.value);
     else value = input.value;
     const path = input.name.split(".");
@@ -110,29 +113,77 @@ function schedulePreview() {
 async function updatePreview() {
   try {
     const p = await api("/api/preview", { method: "POST", body: JSON.stringify(readForm()) });
-    const rows = [
-      ["Field step", `${p.field_step_oe.toFixed(2)} Oe`],
-      ["Modulation", `${p.modulation_rms_oe.toFixed(3)} Oe rms (sine ${p.sine_amplitude_v.toFixed(3)} V rms)`],
+    const drive = `${p.sine_amplitude_v.toFixed(3)} V rms = ${p.modulation_rms_oe.toFixed(3)} Oe rms`;
+    els.sineDrive.textContent = drive;
+    const summary = [
+      ["Field step", `${p.field_step_oe.toFixed(2)} Oe (after 1 mV rounding)`],
+      ["Modulation", drive],
       ["Estimated time", `${(p.estimated_run_seconds / 60).toFixed(1)} min`],
-      ...p.sweeps.map((s) => [
-        `${s.frequency_ghz} GHz`,
-        `Hres ${s.resonance_field_oe.toFixed(0)} Oe: ` +
-          `${s.begin_field_oe.toFixed(0)} → ${s.end_field_oe.toFixed(0)} Oe ` +
-          `(${s.begin_v.toFixed(3)} → ${s.end_v.toFixed(3)} V), ${s.points} points`,
-      ]),
     ];
-    els.preview.replaceChildren(...rows.flatMap(([k, v]) => {
+    els.previewSummary.replaceChildren(...summary.flatMap(([k, v]) => {
       const dt = document.createElement("dt");
       dt.textContent = k;
       const dd = document.createElement("dd");
       dd.textContent = v;
       return [dt, dd];
     }));
+    els.previewRows.replaceChildren(...p.sweeps.map((s) => {
+      const tr = document.createElement("tr");
+      const cells = [
+        String(s.frequency_ghz),
+        s.resonance_field_oe.toFixed(0),
+        `${s.begin_field_oe.toFixed(0)} → ${s.end_field_oe.toFixed(0)}`,
+        String(s.points),
+        s.file_name,
+      ];
+      cells.forEach((text, i) => {
+        const td = document.createElement("td");
+        td.textContent = text;
+        if (i === cells.length - 1) td.className = "file";
+        tr.append(td);
+      });
+      return tr;
+    }));
+    markCurrentRow();
     showList(els.previewErrors, p.limit_errors);
   } catch (err) {
-    els.preview.replaceChildren();
+    els.previewSummary.replaceChildren();
+    els.previewRows.replaceChildren();
+    els.sineDrive.textContent = "…";
     showList(els.previewErrors, describeDetail(err.detail));
   }
+}
+
+// Highlight the preview row of the sweep being measured (same order as the run).
+function markCurrentRow() {
+  const current = run && run.state === "running" ? run.current_sweep_index : null;
+  [...els.previewRows.children].forEach((tr, i) => tr.classList.toggle("current", i === current));
+}
+
+// ---------- tabs (instrument setup, as in the LabVIEW VI) -----------------
+
+function setupTabs() {
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  const select = (tab) => {
+    for (const t of tabs) {
+      const selected = t === tab;
+      t.setAttribute("aria-selected", String(selected));
+      t.tabIndex = selected ? 0 : -1;
+      document.getElementById(t.getAttribute("aria-controls")).hidden = !selected;
+    }
+    tab.focus();
+  };
+  tabs.forEach((tab, i) => {
+    tab.addEventListener("click", () => select(tab));
+    tab.addEventListener("keydown", (event) => {
+      const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+      if (step) select(tabs[(i + step + tabs.length) % tabs.length]);
+      else if (event.key === "Home") select(tabs[0]);
+      else if (event.key === "End") select(tabs.at(-1));
+      else return;
+      event.preventDefault();
+    });
+  });
 }
 
 // ---------- runs -----------------------------------------------------------
@@ -202,6 +253,7 @@ function applyStatus(status) {
   }));
   if (followLatest && current !== null) els.sweepSelect.value = String(current);
   else if (previous) els.sweepSelect.value = previous;
+  markCurrentRow();
   draw();
 }
 
@@ -219,8 +271,8 @@ function draw() {
   const color = style.getPropertyValue("--text").trim();
   const accent = style.getPropertyValue("--accent").trim();
   const layout = (title, yTitle) => ({
-    title: { text: title },
-    margin: { l: 70, r: 20, t: 40, b: 50 },
+    title: { text: title, font: { size: 13 } },
+    margin: { l: 65, r: 15, t: 30, b: 40 },
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { color },
@@ -252,8 +304,11 @@ async function identify() {
 async function init() {
   const defaults = await api("/api/settings/defaults");
   els.mode.textContent = `${defaults.instrument_mode} instruments`;
+  els.dataDir.textContent = defaults.data_dir;
   fillForm(defaults.settings);
+  setupTabs();
   form.addEventListener("input", schedulePreview);
+  form.addEventListener("submit", (event) => event.preventDefault());
   els.start.addEventListener("click", startRun);
   els.skip.addEventListener("click", () => control("skip"));
   els.stop.addEventListener("click", () => control("stop"));
