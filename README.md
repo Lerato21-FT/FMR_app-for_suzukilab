@@ -45,8 +45,8 @@ cp .env.example .env    # optional: port, instrument mode, addresses, limits
 make run                # creates .venv, installs the lock, fetches Plotly, starts
 ```
 
-Open <http://127.0.0.1:8765>. Ctrl+C stops the app. The API contract is at
-<http://127.0.0.1:8765/docs>.
+Open <http://127.0.0.1:8766>. Ctrl+C stops the app. The API contract is at
+<http://127.0.0.1:8766/docs>.
 
 By default the app uses **simulated instruments**. They produce a synthetic
 FMR line, so you can try everything without hardware. To use the real setup,
@@ -63,14 +63,20 @@ without changing any output. Use it before your first real run.
 
 ## Taking a measurement
 
-1. Enter the frequencies (GHz, comma separated), RF power, the Aux Out sweep
-   range and step, and the waits.
+1. Enter the frequencies (GHz, comma separated), RF power, the **field
+   range** and **field step** (Oe), the **modulation field** (Oe rms), the
+   g-factor and Meff, and the waits.
+   Each frequency gets its own sweep, centred on its Kittel resonance
+   estimate `Hres` and run from `Hres + range/2` down to `Hres − range/2`.
+   For example, a 1000 Oe range around `Hres = 1500 Oe` sweeps from 2000 Oe
+   to 1000 Oe. The supply is bipolar, so a sweep may cross zero.
 2. Check the **Preview**:
-   - the field range and step;
-   - the modulation field in Oe rms;
-   - the estimated duration;
-   - the estimated resonance field at each frequency, from the γ and Meff
-     guesses, with a flag when it falls outside the sweep.
+   - for each frequency, `Hres` and the start and end field and Aux Out
+     voltage, with the point count;
+   - the field step after rounding to 1 mV of Aux Out;
+   - the modulation field you set (Oe rms), as the sine amplitude the
+     backend will send and the field that amplitude actually gives;
+   - the estimated duration.
 
    Settings that break a safety limit are listed in red, and the run will
    refuse to start.
@@ -115,12 +121,16 @@ the page, and every conversion is done by the backend.
 | Field per Aux volt | 996.3 Oe/V | one Kepco supply (≈1984.4 Oe/V with two) |
 | Aux Out inverted | yes | a negative voltage gives a positive field |
 | Gaussmeter scale / offset | 1.544 / −11.956 Oe | `H = scale × reading + offset` (08/20/2026) |
-| Modulation | 5.219 Oe/V rms | at 700 Hz; `Hmod = sine amplitude × this` |
+| Modulation | 5.219 Oe/V rms | at 700 Hz; you set `Hmod` (default 2.0 Oe rms) and the sine amplitude is `Hmod ÷ this` |
 
-Resonance estimate (CGS), for planning only:
+Resonance estimate (CGS), used to centre each sweep, with `γ = g μB / h`
+(default `g = 2`, Meff 140 emu/cc):
 
-- in plane: `f = γ √(H (H + 4πMeff))`;
+- in plane: `f = γ √(H (H + 4πMeff))` (Appl. Phys. Lett. 127, 032406,
+  Eq. 2, with the in-plane fourfold anisotropy set to zero);
 - saturated out of plane: `f = γ (H − 4πMeff)`.
+
+Details are in `docs/fmr-model.md`.
 
 ## Safety limits
 

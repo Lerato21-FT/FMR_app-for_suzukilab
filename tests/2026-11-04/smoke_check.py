@@ -55,9 +55,8 @@ def main() -> int:
 
         settings = {
             "frequencies_ghz": [10.0],
-            "aux_begin_v": -2.7,
-            "aux_end_v": -2.9,
-            "aux_step_v": 0.004,
+            "field_range_oe": 200.0,
+            "field_step_oe": 4.0,
             "step_wait_ms": 0,
             "ramp_wait_ms": 0,
             "saturate_wait_ms": 0,
@@ -78,12 +77,12 @@ def main() -> int:
                 return 1
             time.sleep(0.1)
         assert run["state"] == "finished", f"run ended {run['state']}: {run['error']}"
-        assert run["next_index"] == 51, f"expected 51 points, got {run['next_index']}"
+        assert run["next_index"] == 52, f"expected 52 points, got {run['next_index']}"
         signal = [p["signal_x_v"] for p in run["points"]]
         assert max(signal) > 0 > min(signal), "no resonance in simulated data"
         saved = Path(data_dir) / run["sweeps"][0]["file_name"]
         rows = saved.read_text().splitlines()
-        assert len(rows) == 51, "saved file has the wrong number of rows"
+        assert len(rows) == 52, "saved file has the wrong number of rows"
     except AssertionError as exc:
         print(f"smoke: FAILED: {exc}")
         return 1

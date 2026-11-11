@@ -18,8 +18,6 @@ from app.models import (
     InstrumentInfo,
     InstrumentsStatus,
     Preview,
-    PreviewRequest,
-    ResonanceEstimateSettings,
     RunSettings,
     RunStatus,
 )
@@ -66,18 +64,17 @@ def create_app(
 
     @app.get("/api/settings/defaults")
     def get_defaults() -> Defaults:
-        """Default run settings, estimate guesses and the active safety limits."""
+        """Default run settings and the active safety limits."""
         return Defaults(
             settings=RunSettings(),
-            estimate=ResonanceEstimateSettings(),
             limits=runner.limits,
             instrument_mode=config.instrument_mode,
         )
 
     @app.post("/api/preview")
-    def post_preview(request: PreviewRequest) -> Preview:
-        """Fields, point count, duration, resonance estimates and limit problems."""
-        return preview_run(request, runner.limits)
+    def post_preview(settings: RunSettings) -> Preview:
+        """Each frequency's centred sweep, the duration and any limit problems."""
+        return preview_run(settings, runner.limits)
 
     @app.get("/api/instruments")
     def get_instruments() -> InstrumentsStatus:

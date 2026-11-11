@@ -4,192 +4,170 @@ How this project is put together, and why. For a new project this is the
 specification to build from; afterwards it is kept true as the project
 changes. The rules that apply to every task are in AGENTS.md.
 
-The app replaces the LabVIEW program `Labview_fmr/Suzuki_FMR_v06M.vi` for
-field-swept, lock-in detected co-planar waveguide FMR. What that program does
-is recorded in `notes/2026-11-03.md`. Parts of this design are not built yet;
-the open questions that affect them are listed in TASKS.md.
-
-## Why it runs on the host
-
-The instruments are on GPIB (SR830, Agilent 83640B) and serial (Lake Shore
-425). PyVISA reaches them through the NI-VISA and NI-488.2 drivers installed
-on the Windows lab computer. Docker Desktop containers cannot use those
-drivers or the GPIB interface, so the app runs natively. To keep the host
-clean, every Python package lives in the repository's `.venv/`, and nothing
-is written outside the repository.
-
 ## Stack
 
-- Host: Windows 11, Python 3.14 (64-bit, via the `py` launcher), NI-VISA with
-  NI-488.2, Git and GNU Make 4.4 (ezwinports build, installed for the user on
-  2026-11-04 with approval). These are lab-maintained prerequisites (see
-  AGENTS.md). Recipes use Git for Windows' `sh`.
-- Backend: FastAPI served by uvicorn on `127.0.0.1`, with typed Pydantic
-  request and response models; `/docs` is the contract.
-- Instruments: PyVISA using the NI-VISA backend (`visa64.dll`). It is the
-  standard Python interface to VISA and lets one code path drive GPIB and
-  serial. pyserial is not needed; the Lake Shore is opened as a VISA
-  `ASRL` resource.
+- Backend: Python 3.14 (base image `python:3.14.0-slim-bookworm`)
+  and FastAPI, with typed request and response models; `/docs` is the
+  contract.
 - Frontend: static HTML and JavaScript, with no build step for our own code.
-  Plotly draws the live plots. A pinned, checksum-verified copy is fetched by
-  `make vendor` into gitignored `src/web/vendor/`; no browser CDN is used.
-- Dependencies: declared in `pyproject.toml` and pinned with hashes in
-  `requirements.lock`. `make install` creates `.venv/` and installs exactly
-  the lock.
+  Plotly is vendored into the image for the scientific plots; no browser CDN
+  is used.
+- The app runs in one development container, as the host user; browser
+  validation uses a separate test container.
 
 ## Layout
 
 ```text
-src/app/
-  api.py               routes only; also serves src/web/
-  models.py            Pydantic request/response and settings models
-  config.py            reads .env: instrument mode, VISA addresses, limits
-  calibration.py       Oe <-> V conversions, modulation RMS field,
-                       gaussmeter correction, sweep/ramp voltages,
-                       Kittel resonance estimate
-  measurement.py       limit checks and the sweep run engine
-  preview.py           derived values shown before a run
-  storage.py           writes LabVIEW-compatible sweep files
-  hardware_check.py    identifies real instruments (make hardware-check)
-  instruments/
-    base.py            typed interfaces each driver implements
-    hardware.py        opens the real instruments through PyVISA
-    sr830.py           lock-in: reference, sine output, filter, Aux Out, X/θ
-    lakeshore425.py    gaussmeter: single field reading
-    agilent83640b.py   RF source: CW frequency, power, output on/off
-    magnet.py          Kepco supply driven through SR830 Aux Out (ramps)
-    simulated.py       simulated instruments with a synthetic FMR line
-    (stepper.py        TIMS rotation stage: not built; only if needed, Q4)
-src/web/               the page: index.html, app.js, styles.css
-tests/YYYY-MM-DD/      pytest, one folder per task day (see AGENTS.md);
-                       tests/2026-11-04/smoke_check.py is run by make smoke
-notes/                 daily implementation records, named YYYY-MM-DD.md
-docs/                  decisions worth remembering, one short file each
-data/measurements/     gitignored; saved sweeps
-Labview_fmr/           the original LabVIEW VI, kept for reference only
-artifacts/             gitignored browser screenshots
-.cache/                gitignored tool caches (pip, Playwright browsers)
-.venv/                 gitignored Python environment
-Makefile  README.md  ARCHITECTURE.md  AGENTS.md  CLAUDE.md  TASKS.md
-pyproject.toml  requirements.lock  .gitignore  .env.example
+
+src/app/             the backend: api.py (routes only), pipeline.py, models.py
+                     dataset_store.py manages validated, temporary uploads
+src/web/             the page: index.html, app.js, styles.css
+tests/               pytest
+docs/                decisions worth remembering, one short file each
+notes/               daily implementation records, named YYYY-MM-DD.md
+artifacts/           gitignored browser screenshots and exported plots
+.cache/buildx/       gitignored Docker builder metadata kept inside the repo
+data/                for future datasets: raw/ is never modified,
+                     processed/ is gitignored
+Makefile  README.md  ARCHITECTURE.md  AGENTS.md  CLAUDE.md
+.gitignore .dockerignore .env.example
 ```
 
-## Instruments
+## Backend
 
-- Each driver implements the interface in `instruments/base.py` and has a
-  simulated twin in `simulated.py`. `FMR_INSTRUMENTS=simulated` (the default,
-  and always in tests) or `hardware`, set in `.env`, selects which ones the app
-  builds. VISA addresses come from `.env`; the LabVIEW defaults are SR830
-  `GPIB0::8::INSTR`, 83640B `GPIB0::19::INSTR` and Lake Shore `ASRL3::INSTR`
-  (COM3).
-- The simulated lock-in returns a derivative-Lorentzian signal around a
-  resonance field set by a Kittel-like relation, plus noise. Field readback
-  follows Aux Out through the calibration. This lets the whole run engine and
-  page be tested without hardware.
-- Drivers send instrument commands only. They do not decide limits or
-  sequence; `measurement.py` does. Driver tests check the exact command
-  strings against a fake VISA resource.
-- The SR830 is never sent `*RST`, because it zeroes the Aux outputs and would
-  step the magnet instead of ramping it. The magnet ramp starts from the Aux
-  Out voltage read back from the lock-in.
-- PyVISA is imported only when the hardware lab is opened, so simulated mode
-  never loads NI-VISA.
-
-## Measurement engine
-
-- One run at a time, as a background task. Its inputs are a validated
-  `RunSettings` model: frequencies (GHz), RF power (dBm), Aux Out begin, end
-  and step (V), waits, ramp steps and saturation time, modulation amplitude
-  and frequency, lock-in settings, orientation, file prefix and calibration
-  constants.
-- Sequence per frequency, following the VI: set RF CW frequency and turn on
-  power; ramp the field to the start; wait to saturate; step Aux Out, waiting
-  after each step, and read the corrected field (Lake Shore) and X and θ
-  (SR830); then turn modulation and RF off, ramp the field to about 0, and
-  save the sweep.
-- Skip ends the current frequency and moves to the next. Stop ends the run
-  after the safe shutdown. A `try/finally` guarantees the shutdown (RF off,
-  modulation off, field ramped down) on every exit path, including driver
-  errors. Each shutdown step is attempted even if an earlier one fails; every
-  failure is logged and listed in `shutdown_errors`, and the run is `failed`.
-- The points of a skipped, stopped or failed sweep are saved too; the sweep's
-  `state` says which.
-- The run executes in a thread, because VISA I/O blocks. The runner keeps one
-  lab open, allows one active run, and keeps the last 20 runs in memory. A
-  restart forgets past runs, but their files remain. While a run is active,
-  `/api/instruments` returns the identities cached at its start rather than
-  talking to busy instruments.
-- Settings are checked against the limits in `config.py` before the run
-  starts. Values are pending (TASKS.md, Q8).
-
-## Calibration
-
-The values here are results, so they are computed in `calibration.py`, not in
-the browser. Starting values come from the VI and are editable settings,
-not constants in code:
-
-- field per Aux Out volt: about 996.3 Oe/V with one Kepco supply, about
-  1984.4 Oe/V with two; the Aux Out sign is inverted;
-- gaussmeter correction: scale 1.544, offset −11.956 Oe (08/20/2026);
-- modulation: 5.219 Oe/V at 700 Hz, so modulation RMS field = sine amplitude
-  × scale;
-- the sweep-window estimate from the guesses for γ (MHz/Oe) and Meff.
-
-## Data files
-
-- One file per sweep in `data/measurements/`. Tab-delimited, `%.6e`, columns
-  H (Oe), signal X (V) and phase (deg). The name follows the LabVIEW pattern,
-  for example `prefix-10000MHz-In-plane-000.0deg-+0dBm2.0OeRMS-.csv`, so the
-  analysis app can read the files unchanged (format details: Q6).
-- Files are written once and never modified. An existing name is never
-  overwritten; the run fails before measuring instead.
-
-## API
-
-- `GET /api/settings/defaults`: default `RunSettings`, resonance-estimate
-  guesses, active limits and instrument mode.
-- `POST /api/preview`: field range and step, points per sweep, modulation
-  field, estimated duration, resonance estimates, file names and limit
-  problems for given settings, so the page shows them without calculating.
-- `GET /api/instruments`: mode, configured addresses and identification
-  strings.
-- `POST /api/runs`: start a run from `RunSettings` (HTTP 201; 409 if one is
-  active; 422 if invalid, out of limits, or a file name is taken).
-- `GET /api/runs/latest`: the most recent run, so a reloaded page resumes.
-- `GET /api/runs/{run_id}?since=N`: state, sweeps, error, shutdown errors and
-  the data points after index `N`, for live plotting by polling.
-- `POST /api/runs/{run_id}/skip`, `POST /api/runs/{run_id}/stop` (HTTP 202).
-- Models forbid unknown fields and non-finite numbers.
+- One pipeline per API endpoint, each with one entry-point function in
+  `pipeline.py`. The API calls it; tests may call any function.
+- `api.py` holds routes only. It also serves our page from `src/web/` and the
+  frontend libraries under `/vendor/`.
+- `dataset_store.py` stages CSV uploads under the container's `/tmp`, validates
+  every CSV and fit setting before activating it, and serializes reads against
+  replacement. Geometry and fit initialization are activated atomically with
+  the files and retained for later API calls and page reloads. Uploads are
+  limited to 100 MB and 1000 files.
+- Upload validation uses `validate_dataset`: frequency metadata must be positive
+  and finite, with at least eight finite numeric field/signal rows per CSV.
+  Resonance extraction and aggregate fit success do not gate activation.
+- `pipeline.py` owns CSV parsing, resonance extraction, and both scientific
+  fits. The frontend receives complete data and fit curves from the API.
+- Analysis accepts request-scoped `excluded_measurement_ids`, validated for
+  length, uniqueness and membership in the active dataset. Both aggregate
+  fits use the same included subset; damping uses its refitted g factor.
+  Responses retain every resonance point with an `excluded` flag and report
+  `included_measurement_count`. Failed per-sweep extractions retain their IDs
+  and `extraction_error`, with null extracted values. They must be explicitly
+  excluded before fitting the remaining measurements.
+- A valid analysis returns all measurements even when scientific fitting is
+  unavailable: both aggregate fits are null and `fit_error` explains why.
+  This includes fewer than four included sweeps, negative fitted resonances
+  unsupported by the perpendicular model, and nonphysical linewidth fits.
+  Invalid settings, CSVs, and exclusion IDs remain HTTP 422 errors.
+- `analyze_trace` returns raw samples independently of resonance fit success;
+  a failed fit has null parameters, an empty curve, and `extraction_error`.
+  Signed field coordinates are preserved throughout; no absolute-field
+  conversion or implicit branch selection is performed.
+- Analysis selects the aligned-axis in-plane Kittel model or the saturated
+  perpendicular model `f = (g μB/h)(Bres − Beff,⊥)`, using the convention
+  `Beff,⊥ = μ0 Ms − μ0 H2⊥`. Perpendicular defaults are −0.4 T and 10 Oe
+  peak-to-peak linewidth; these initialize fits, not fixed results.
+  The perpendicular model returns no four-fold term (`null` in the API).
 
 ## Browser
 
-- A settings form, start/skip/stop controls, run status, and live plots of
-  signal and phase against the measured field. All plotted values come from
-  the API.
+- Geometry controls select upload/analysis API settings. Switching to a
+  different geometry requires a matching folder; old plots are hidden until
+  measurements for that geometry are loaded.
+- All scientific points, parameters and curves come from the API.
+  JavaScript formats labels, displays equations and handles interaction.
+- Clicking markers on either scientific chart or using an accessible dataset
+  list selects sweep IDs. Exclude/restore controls request a new analysis;
+  selected markers are cyan and excluded markers are gray crosses in both
+  plots. A failed request leaves the previous results available. Exclusions
+  survive refits within the page and reset on reload or a successful upload.
+- Valid responses with unavailable fits clear previous property values and
+  curves, display an explanatory status, and retain point selection and raw
+  inspection. Failed extractions are labeled in the dataset and trace lists;
+  their missing coordinates are not plotted. Raw traces still render with an
+  unavailable-fit annotation. PNG exports also indicate unavailable fits.
+- Plotly charts render after their results section becomes visible, resize
+  with `ResizeObserver`, and become one column below 1100 px. Equations,
+  legends and axes have reserved margins. PNGs include fitted values and
+  an opaque background.
+
+## The container
+
+- The Dockerfile separates build dependencies, app runtime and browser checks:
+  one stage with uv only (where `make lock` runs,
+  so the first lock needs no lock), one with Node for the frontend libraries,
+  and the final app image with both sets of locked dependencies. Compose
+  explicitly selects the `app` target. Separate `browser-deps` and
+  `browser-runtime`/`browser-checks` stages install the optional Playwright group and
+  Chromium with system dependencies at build time. Browser tooling is
+  excluded from the normal app image. The profiled `browser` service has no
+  published ports, runs as the host user with read-only root and `/tmp`
+  tmpfs, and writes artifacts only to the repository's `artifacts/` mount.
+- The image contains `src/`, `tests/`, and `docker/pyproject.toml` under
+  `/work`, with `PYTHONPATH=/work/src`. Supplied CSVs are copied into the image
+  at `/data` as read-only data. Application code and data are read from the
+  image because Python received `EDEADLK` reading the macOS bind mount in
+  this environment. `.dockerignore` allows only the required build inputs.
+  After local code changes, `make up` rebuilds the image and starts the app
+  with the updated code.
+- Frontend libraries are installed at build time from `package-lock.json` and
+  copied into the image. Never installed on the host, never committed, never
+  loaded from a CDN.
+- The app service publishes on `127.0.0.1` and runs without host bind mounts;
+  the Makefile loads `.env` when it exists. The container filesystem is
+  read-only except for `/tmp`.
+- The bundled dataset is the startup default. Uploaded datasets are held only
+  in container `/tmp` (a tmpfs), replace the active dataset after successful
+  validation, and are discarded when the container stops. Plot images are
+  exported by Plotly in the browser and are not stored by the backend.
 
 ## Makefile
 
-`make help` (the default) lists every target.
+`make help` (the default) lists every target in three groups.
 
-- `install`: create `.venv/` with `py -3.14` and install `requirements.lock`.
-  `vendor`: fetch the pinned Plotly file and check its hash.
-- `run`: start the app on `127.0.0.1:${FMR_PORT:-8765}`; Ctrl+C stops it.
-- `verify`: lint, test and smoke, with simulated instruments. Must pass from
-  a fresh clone with only the host prerequisites installed.
-- `test` (`TEST_PATHS` selects files), `lint` (Ruff, changes nothing), `fmt`.
-- `smoke`: start the app with uvicorn in simulated mode, check the page and
-  Plotly are served, run a short sweep over HTTP, check the returned data and
-  saved file (under `.cache/smoke-data/`), and stop the app.
-- `browser` (planned, not built yet): Playwright and Chromium inside
-  `.venv/` and `.cache/`, checking the page at desktop and mobile widths.
-  It will join `verify` when built.
-- `hardware-check`: only when asked, identify each real instrument (`*IDN?`
-  and equivalents) without changing any output.
-- `lock`: after changing `pyproject.toml`, regenerate `requirements.lock`.
-- `review`, `fresh-verify` (clone the committed branch into `.cache/` and
-  run `verify`), `clean` (remove `.venv/`, caches and generated files; keep
-  `data/` and `.env`).
-- On Windows the Makefile sets `SHELL` to Git for Windows' `sh.exe` and puts
-  Git's `usr/bin` on `PATH` for the make process. As a result, `make` works
-  the same from PowerShell, cmd, the VS Code terminal or Git Bash. It calls
-  the environment's Python as `.venv/Scripts/python.exe`.
+Everyday, the only ones a user needs:
+
+- `build`: build everything the project needs, into the image.
+- `up` and `down`: start and stop the app.
+- `verify`: check that it all works (lint, test, smoke, browser). Must pass from a
+  fresh clone with only Docker, Make and git installed.
+- `clean`: return to the state of a fresh clone on a fresh computer. This
+  project's containers, images and generated files are removed; `data/raw/`
+  and `.env` are kept.
+
+While developing:
+
+- `test`: run the tests copied into the image; `TEST_PATHS` can select test
+  files. `lint`: check the code copied into the image, changing nothing.
+  Both rebuild first. `fmt`: rewrite the host source and tests into the
+  standard format using explicit writable mounts for this command only.
+- `smoke`: start the app, check a real API result (not just a status code),
+  stop it again.
+- `logs` and `shell`: follow the app's output; open a shell inside the
+  container.
+- `browser`: build the separate browser image and run real Chromium
+  upload/refit/reload/export checks against an isolated API inside that
+  container. Check page overflow, clipped labels and equation/legend
+  overlap at desktop and mobile sizes. Save screenshots and PNGs to
+  gitignored `artifacts/`.
+- `review`: check Git diff whitespace and display status/statistics.
+- `fresh-verify`: clone the committed feature branch into a new directory
+  under repository `.cache/` and run `make verify` there. No `.env` or
+  uncommitted files are copied. The checkout is kept for inspection.
+- `fmt` accepts `FORMAT_PATHS` to limit formatting to selected files.
+
+Only when dependencies change:
+
+- `lock`: after adding, removing or upgrading a package in
+  `docker/pyproject.toml` or `docker/package.json`, record the exact versions
+  in `docker/uv.lock` and `docker/package-lock.json`, and commit each manifest
+  with its lock. `build` uses only what the locks record, and says so, with
+  this instruction, when a manifest and its lock disagree.
+
+Container targets run through compose (`docker compose -f docker/compose.yaml`);
+`lock` uses build-tool containers directly. Read-only Git review and creating
+the artifact directory need no container. The Makefile sets `BUILDX_CONFIG`
+to repository-local `.cache/buildx/`, keeping builder activity metadata out
+of the host's Docker config folder.

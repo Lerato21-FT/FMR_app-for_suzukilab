@@ -10,9 +10,8 @@ from app.models import Limits
 
 FAST = {
     "frequencies_ghz": [10.0],
-    "aux_begin_v": -2.7,
-    "aux_end_v": -2.9,
-    "aux_step_v": 0.005,
+    "field_range_oe": 200.0,
+    "field_step_oe": 5.0,
     "step_wait_ms": 0,
     "ramp_wait_ms": 0,
     "saturate_wait_ms": 0,
@@ -45,23 +44,28 @@ def test_defaults_and_page(client):
 
 
 def test_preview_reports_fields_and_resonance(client):
-    response = client.post("/api/preview", json={"settings": FAST})
+    response = client.post("/api/preview", json=FAST)
     assert response.status_code == 200
     body = response.json()
-    assert body["begin_field_oe"] == pytest.approx(2690.01)
-    assert body["points_per_sweep"] == 41
-    assert body["resonances"][0]["inside_sweep"] is True
+    sweep = body["sweeps"][0]
+    assert sweep["begin_field_oe"] == pytest.approx(
+        sweep["resonance_field_oe"] + 100.0, abs=1.0
+    )
+    assert sweep["end_field_oe"] == pytest.approx(
+        sweep["resonance_field_oe"] - 100.0, abs=1.0
+    )
+    assert sweep["points"] == 42  # 0.201 V in 5 mV steps, plus the end point
     assert body["limit_errors"] == []
 
 
 def test_invalid_and_unsafe_settings_are_rejected(client):
-    bad = client.post("/api/runs", json={**FAST, "aux_step_v": -1})
+    bad = client.post("/api/runs", json={**FAST, "field_step_oe": -1})
     assert bad.status_code == 422
     unknown = client.post("/api/runs", json={**FAST, "surprise": 1})
     assert unknown.status_code == 422
-    unsafe = client.post("/api/runs", json={**FAST, "aux_end_v": -9})
+    unsafe = client.post("/api/runs", json={**FAST, "field_range_oe": 9000})
     assert unsafe.status_code == 422
-    assert any("aux_end_v" in e for e in unsafe.json()["detail"])
+    assert any("V limit" in e for e in unsafe.json()["detail"])
 
 
 def test_run_lifecycle(client):
@@ -73,10 +77,10 @@ def test_run_lifecycle(client):
 
     status = client.get(f"/api/runs/{run_id}").json()
     assert status["state"] == "finished"
-    assert status["next_index"] == 41
-    assert len(status["points"]) == 41
-    tail = client.get(f"/api/runs/{run_id}?since=40").json()
-    assert [p["index"] for p in tail["points"]] == [40]
+    assert status["next_index"] == 42
+    assert len(status["points"]) == 42
+    tail = client.get(f"/api/runs/{run_id}?since=41").json()
+    assert [p["index"] for p in tail["points"]] == [41]
     assert client.get("/api/runs/latest").json()["run_id"] == run_id
     assert client.get("/api/runs/nope").status_code == 404
     assert client.get(f"/api/runs/{run_id}?since=-1").status_code == 422

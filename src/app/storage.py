@@ -3,7 +3,7 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-from app.calibration import modulation_rms_oe
+from app.calibration import modulation_rms_oe, sine_amplitude_for_modulation
 from app.models import DataPoint, RunSettings
 
 
@@ -21,9 +21,13 @@ def _format_mhz(frequency_ghz: float) -> str:
 def sweep_file_name(settings: RunSettings, frequency_ghz: float) -> str:
     """Return the LabVIEW-style file name for one sweep.
 
-    Example: ``fmr-10000MHz-In-plane-000.0deg-+0dBm2.1OeRMS-.csv``.
+    Example: ``fmr-10000MHz-In-plane-000.0deg-+0dBm2.0OeRMS-.csv``. The
+    modulation is the field the computed sine amplitude actually gives.
     """
-    hmod = modulation_rms_oe(settings.lockin.sine_amplitude_v, settings.calibration)
+    cal = settings.calibration
+    hmod = modulation_rms_oe(
+        sine_amplitude_for_modulation(settings.modulation_field_oe_rms, cal), cal
+    )
     return (
         f"{settings.file_prefix}-{_format_mhz(frequency_ghz)}MHz-"
         f"{settings.orientation.file_label}-{settings.angle_deg:05.1f}deg-"

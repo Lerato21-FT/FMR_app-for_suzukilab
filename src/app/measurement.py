@@ -8,8 +8,8 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 
 from app.calibration import (
-    aux_voltage_to_field_oe,
     corrected_field_oe,
+    sine_amplitude_for_modulation,
     sweep_voltages,
 )
 from app.instruments.base import Lab
@@ -21,10 +21,12 @@ from app.models import (
     RunSettings,
     RunState,
     RunStatus,
+    SweepPlan,
     SweepState,
     SweepSummary,
 )
 from app.storage import SweepStore, sweep_file_name
+from app.sweep_plan import aux_step_v, plan_sweeps
 
 logger = logging.getLogger(__name__)
 
@@ -45,36 +47,45 @@ class RunSettingsError(ValueError):
 
 
 def check_limits(settings: RunSettings, limits: Limits) -> list[str]:
-    """Return every way ``settings`` breaks ``limits`` (empty when safe)."""
-    errors: list[str] = []
-    for name in ("aux_begin_v", "aux_end_v"):
-        volts = getattr(settings, name)
-        if abs(volts) > limits.max_aux_voltage_v:
+    """Return every way ``settings`` breaks ``limits`` (empty when safe).
+
+    Every frequency's planned sweep is checked. Negative fields are allowed
+    (the supply is bipolar); limits apply to the magnitude.
+    """
+    plans, errors = plan_sweeps(settings)
+    for plan in plans:
+        label = f"{plan.frequency_ghz} GHz"
+        for end, volts, field in (
+            ("start", plan.begin_v, plan.begin_field_oe),
+            ("end", plan.end_v, plan.end_field_oe),
+        ):
+            if abs(volts) > limits.max_aux_voltage_v:
+                errors.append(
+                    f"{label}: {end} Aux Out {volts} V exceeds the "
+                    f"{limits.max_aux_voltage_v} V limit"
+                )
+            if abs(field) > limits.max_field_oe:
+                errors.append(
+                    f"{label}: {end} field {field:.0f} Oe exceeds the "
+                    f"{limits.max_field_oe:.0f} Oe limit"
+                )
+        if plan.points > limits.max_points_per_sweep:
             errors.append(
-                f"{name} {volts} V exceeds the {limits.max_aux_voltage_v} V limit"
-            )
-        field = abs(aux_voltage_to_field_oe(volts, settings.calibration))
-        if field > limits.max_field_oe:
-            errors.append(
-                f"{name} gives {field:.0f} Oe, above the "
-                f"{limits.max_field_oe:.0f} Oe limit"
+                f"{label}: {plan.points} points per sweep exceeds the "
+                f"{limits.max_points_per_sweep} limit"
             )
     if settings.rf_power_dbm > limits.max_rf_power_dbm:
         errors.append(
             f"RF power {settings.rf_power_dbm} dBm exceeds the "
             f"{limits.max_rf_power_dbm} dBm limit"
         )
-    for name in ("ramp_step_v", "aux_step_v"):
-        if getattr(settings, name) > limits.max_ramp_step_v:
-            errors.append(
-                f"{name} exceeds the {limits.max_ramp_step_v} V per step limit"
-            )
-    points = len(
-        sweep_voltages(settings.aux_begin_v, settings.aux_end_v, settings.aux_step_v)
-    )
-    if points > limits.max_points_per_sweep:
+    if settings.ramp_step_v > limits.max_ramp_step_v:
         errors.append(
-            f"{points} points per sweep exceeds the {limits.max_points_per_sweep} limit"
+            f"ramp_step_v exceeds the {limits.max_ramp_step_v} V per step limit"
+        )
+    if aux_step_v(settings) > limits.max_ramp_step_v:
+        errors.append(
+            f"field_step_oe is more than {limits.max_ramp_step_v} V of Aux Out per step"
         )
     return errors
 
@@ -260,12 +271,15 @@ class MeasurementRunner:
         magnet: AuxOutMagnet | None = None
         final_state = RunState.FINISHED
         try:
+            plans, plan_errors = plan_sweeps(settings)
+            if plan_errors:
+                raise RunSettingsError(plan_errors)
             magnet = AuxOutMagnet(lab.lockin, lab.magnet_aux_channel)
             lab.lockin.configure(settings.lockin)
-            for index, frequency in enumerate(settings.frequencies_ghz):
+            for index, plan in enumerate(plans):
                 if run.stop_event.is_set():
                     break
-                outcome = self._measure_sweep(run, lab, magnet, index, frequency)
+                outcome = self._measure_sweep(run, lab, magnet, index, plan)
                 self._end_sweep(lab, magnet, settings)
                 self._save_sweep(run, index, outcome)
             if run.stop_event.is_set():
@@ -299,7 +313,7 @@ class MeasurementRunner:
         lab: Lab,
         magnet: AuxOutMagnet,
         index: int,
-        frequency_ghz: float,
+        plan: SweepPlan,
     ) -> SweepState:
         settings = run.settings
         run.skip_event.clear()
@@ -308,13 +322,17 @@ class MeasurementRunner:
             run.unsaved = []
         run.set_sweep(index, state=SweepState.MEASURING)
 
-        lab.rf_source.set_cw_frequency(frequency_ghz * 1e9)
+        lab.rf_source.set_cw_frequency(plan.frequency_ghz * 1e9)
         lab.rf_source.set_power(settings.rf_power_dbm)
         lab.rf_source.set_output(True)
-        lab.lockin.set_sine_amplitude(settings.lockin.sine_amplitude_v)
+        lab.lockin.set_sine_amplitude(
+            sine_amplitude_for_modulation(
+                settings.modulation_field_oe_rms, settings.calibration
+            )
+        )
 
         reached = magnet.ramp_to(
-            settings.aux_begin_v,
+            plan.begin_v,
             settings.ramp_step_v,
             settings.ramp_wait_ms / 1000,
             self._sleep,
@@ -324,9 +342,7 @@ class MeasurementRunner:
             return SweepState.STOPPED
         self._sleep(settings.saturate_wait_ms / 1000)
 
-        voltages = sweep_voltages(
-            settings.aux_begin_v, settings.aux_end_v, settings.aux_step_v
-        )
+        voltages = sweep_voltages(plan.begin_v, plan.end_v, plan.step_v)
         for volts in voltages:
             if run.stop_event.is_set():
                 return SweepState.STOPPED

@@ -11,7 +11,7 @@ def test_file_name_matches_labview_pattern():
     settings = RunSettings(file_prefix="sample1", rf_power_dbm=0)
     assert (
         sweep_file_name(settings, 10.0)
-        == "sample1-10000MHz-In-plane-000.0deg-+0dBm2.1OeRMS-.csv"
+        == "sample1-10000MHz-In-plane-000.0deg-+0dBm2.0OeRMS-.csv"
     )
     assert "-10500.5MHz-" in sweep_file_name(settings, 10.5005)
 

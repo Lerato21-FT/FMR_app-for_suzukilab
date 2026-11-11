@@ -10,7 +10,7 @@ from app.instruments.lakeshore425 import (
 )
 from app.instruments.sr830 import SR830
 
-_TIMEOUT_MS = 5000
+_TIMEOUT_MS = 2000
 
 
 def open_hardware_lab(config: AppConfig) -> Lab:

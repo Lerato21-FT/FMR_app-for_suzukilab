@@ -14,14 +14,14 @@ from app.models import (
     SweepState,
 )
 from app.storage import SweepStore, sweep_file_name
+from app.sweep_plan import plan_sweeps
 
 
 def fast_settings(**changes):
     base = {
         "frequencies_ghz": [10.0, 12.0],
-        "aux_begin_v": -2.6,
-        "aux_end_v": -3.0,
-        "aux_step_v": 0.002,
+        "field_range_oe": 400.0,
+        "field_step_oe": 2.0,
         "step_wait_ms": 0,
         "ramp_wait_ms": 0,
         "saturate_wait_ms": 0,
@@ -56,21 +56,24 @@ def test_run_saves_sweeps_and_finds_the_simulated_resonance(tmp_path):
     assert status.state is RunState.FINISHED
     assert status.error is None and status.shutdown_errors == []
     assert [s.state for s in status.sweeps] == [SweepState.COMPLETE] * 2
-    assert all(s.saved and s.point_count == 201 for s in status.sweeps)
+    plans, _ = plan_sweeps(settings)
+    assert [s.point_count for s in status.sweeps] == [p.points for p in plans]
+    assert all(s.saved for s in status.sweeps)
     assert_safe(sim)
 
     rows = read_file(tmp_path / sweep_file_name(settings, 10.0))
-    assert len(rows) == 201
+    assert len(rows) == plans[0].points
     fields = [r[0] for r in rows]
     # Field column is the gaussmeter reading after calibration: the true field.
-    assert fields[0] == pytest.approx(2.6 * 996.3, abs=0.5)
-    assert fields[-1] == pytest.approx(3.0 * 996.3, abs=0.5)
+    # The sweep is centred on the Kittel estimate and runs high to low.
+    expected = estimate_resonance_field_oe(10.0, 2.0, 140.0, Orientation.IN_PLANE)
+    assert fields[0] == pytest.approx(expected + 200.0, abs=1.5)
+    assert fields[-1] == pytest.approx(expected - 200.0, abs=1.5)
 
     # The derivative line crosses zero midway between its two extrema.
     signal = [r[1] for r in rows]
     h_max = fields[signal.index(max(signal))]
     h_min = fields[signal.index(min(signal))]
-    expected = estimate_resonance_field_oe(10.0, 2.8, 140.0, Orientation.IN_PLANE)
     assert (h_max + h_min) / 2 == pytest.approx(expected, abs=3.0)
     assert h_max < expected < h_min
 
@@ -150,9 +153,9 @@ def test_skip_moves_to_next_frequency(tmp_path):
 def test_limits_are_checked_before_anything_is_sent(tmp_path):
     runner, sim = make_runner(tmp_path)
     with pytest.raises(RunSettingsError) as info:
-        runner.start(fast_settings(aux_begin_v=-6.0, rf_power_dbm=24))
+        runner.start(fast_settings(field_range_oe=8000.0, rf_power_dbm=24))
     messages = " ".join(info.value.errors)
-    assert "aux_begin_v" in messages and "RF power" in messages
+    assert "V limit" in messages and "RF power" in messages
     assert runner.latest_run_id() is None
     assert sim.state.rf_hz == 0.0
 

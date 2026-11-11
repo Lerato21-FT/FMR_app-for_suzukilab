@@ -10,6 +10,7 @@ from app.calibration import (
     corrected_field_oe,
     estimate_resonance_field_oe,
     field_to_aux_voltage,
+    gyromagnetic_ratio_mhz_per_oe,
     modulation_rms_oe,
     ramp_voltages,
     raw_reading_for_field,
@@ -69,19 +70,23 @@ def test_ramp_excludes_start_and_limits_step():
 
 
 def test_in_plane_resonance_satisfies_kittel():
-    field = estimate_resonance_field_oe(10.0, 2.8, 140.0, Orientation.IN_PLANE)
+    field = estimate_resonance_field_oe(10.0, 2.0, 140.0, Orientation.IN_PLANE)
     four_pi_m = 4 * math.pi * 140.0
     assert field is not None
-    assert 2.8e-3 * math.sqrt(field * (field + four_pi_m)) == pytest.approx(10.0)
-    assert field == pytest.approx(2798.5, abs=0.5)
+    gamma_ghz_per_oe = gyromagnetic_ratio_mhz_per_oe(2.0) * 1e-3
+    assert gamma_ghz_per_oe * math.sqrt(field * (field + four_pi_m)) == pytest.approx(
+        10.0
+    )
+    assert field == pytest.approx(2799.5, abs=0.5)
 
 
 def test_out_of_plane_resonance():
-    field = estimate_resonance_field_oe(10.0, 2.8, 140.0, Orientation.OUT_OF_PLANE)
-    assert field == pytest.approx(10_000 / 2.8 + 4 * math.pi * 140.0)
+    field = estimate_resonance_field_oe(10.0, 2.0, 140.0, Orientation.OUT_OF_PLANE)
+    gamma = gyromagnetic_ratio_mhz_per_oe(2.0)
+    assert field == pytest.approx(10_000 / gamma + 4 * math.pi * 140.0)
 
 
 def test_out_of_plane_without_positive_solution():
     assert (
-        estimate_resonance_field_oe(1.0, 2.8, -500.0, Orientation.OUT_OF_PLANE) is None
+        estimate_resonance_field_oe(1.0, 2.0, -500.0, Orientation.OUT_OF_PLANE) is None
     )

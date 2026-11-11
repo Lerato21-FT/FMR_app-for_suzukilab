@@ -1,7 +1,12 @@
 """Stanford Research SR830 lock-in amplifier driver."""
 
 from app.instruments.base import VisaResource
-from app.models import SR830_AUX_RANGE_V, SR830_MIN_SINE_V, LockInSettings
+from app.models import (
+    SR830_AUX_RANGE_V,
+    SR830_MAX_SINE_V,
+    SR830_MIN_SINE_V,
+    LockInSettings,
+)
 
 
 class SR830:
@@ -36,7 +41,7 @@ class SR830:
         Raises:
             ValueError: if the amplitude is out of range.
         """
-        if not SR830_MIN_SINE_V <= volts_rms <= 5.0:
+        if not SR830_MIN_SINE_V <= volts_rms <= SR830_MAX_SINE_V:
             raise ValueError("sine amplitude must be between 0.004 and 5 V")
         self._resource.write(f"SLVL {volts_rms:.3f}")
 

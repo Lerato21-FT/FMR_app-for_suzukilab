@@ -29,7 +29,7 @@ from app.models import (
 class SimulatedSample:
     """Magnetic sample parameters for the synthetic resonance."""
 
-    gamma_mhz_per_oe: float = 2.8
+    g_factor: float = 2.0
     meff_emu_cc: float = 140.0
     orientation: Orientation = Orientation.IN_PLANE
     linewidth_hwhm_oe: float = 15.0
@@ -95,7 +95,7 @@ class SimulatedLockIn:
             return noise, phase
         resonance = estimate_resonance_field_oe(
             state.rf_hz / 1e9,
-            sample.gamma_mhz_per_oe,
+            sample.g_factor,
             sample.meff_emu_cc,
             sample.orientation,
         )

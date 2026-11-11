@@ -25,8 +25,8 @@ let followLatest = true;
 
 // ---------- form <-> JSON --------------------------------------------------
 
-function fillForm(settings, estimate) {
-  const values = { ...flatten(settings), ...flatten({ estimate }) };
+function fillForm(settings) {
+  const values = flatten(settings);
   for (const input of form.elements) {
     if (!input.name || !(input.name in values)) continue;
     const value = values[input.name];
@@ -51,7 +51,6 @@ function flatten(obj, prefix = "") {
 
 function readForm() {
   const settings = {};
-  const estimate = {};
   for (const input of form.elements) {
     if (!input.name) continue;
     let value;
@@ -60,14 +59,12 @@ function readForm() {
       value = input.value.split(",").map((s) => s.trim()).filter(Boolean).map(Number);
     } else if (input.type === "number") value = input.value === "" ? null : Number(input.value);
     else value = input.value;
-    const parts = input.name.split(".");
-    const target = parts[0] === "estimate" ? estimate : settings;
-    const path = parts[0] === "estimate" ? parts.slice(1) : parts;
-    let node = target;
+    const path = input.name.split(".");
+    let node = settings;
     for (const key of path.slice(0, -1)) node = node[key] ??= {};
     node[path.at(-1)] = value;
   }
-  return { settings, estimate };
+  return settings;
 }
 
 // ---------- API helpers ----------------------------------------------------
@@ -114,17 +111,14 @@ async function updatePreview() {
   try {
     const p = await api("/api/preview", { method: "POST", body: JSON.stringify(readForm()) });
     const rows = [
-      ["Begin field", `${p.begin_field_oe.toFixed(1)} Oe`],
-      ["End field", `${p.end_field_oe.toFixed(1)} Oe`],
       ["Field step", `${p.field_step_oe.toFixed(2)} Oe`],
-      ["Points per sweep", p.points_per_sweep],
-      ["Modulation", `${p.modulation_rms_oe.toFixed(2)} Oe rms`],
+      ["Modulation", `${p.modulation_rms_oe.toFixed(3)} Oe rms (sine ${p.sine_amplitude_v.toFixed(3)} V rms)`],
       ["Estimated time", `${(p.estimated_run_seconds / 60).toFixed(1)} min`],
-      ...p.resonances.map((r) => [
-        `Hres @ ${r.frequency_ghz} GHz`,
-        r.resonance_field_oe === null
-          ? "no solution"
-          : `${r.resonance_field_oe.toFixed(0)} Oe${r.inside_sweep ? "" : " (outside sweep)"}`,
+      ...p.sweeps.map((s) => [
+        `${s.frequency_ghz} GHz`,
+        `Hres ${s.resonance_field_oe.toFixed(0)} Oe: ` +
+          `${s.begin_field_oe.toFixed(0)} → ${s.end_field_oe.toFixed(0)} Oe ` +
+          `(${s.begin_v.toFixed(3)} → ${s.end_v.toFixed(3)} V), ${s.points} points`,
       ]),
     ];
     els.preview.replaceChildren(...rows.flatMap(([k, v]) => {
@@ -149,7 +143,7 @@ async function startRun() {
   try {
     const status = await api("/api/runs", {
       method: "POST",
-      body: JSON.stringify(readForm().settings),
+      body: JSON.stringify(readForm()),
     });
     points = [];
     nextIndex = 0;
@@ -258,7 +252,7 @@ async function identify() {
 async function init() {
   const defaults = await api("/api/settings/defaults");
   els.mode.textContent = `${defaults.instrument_mode} instruments`;
-  fillForm(defaults.settings, defaults.estimate);
+  fillForm(defaults.settings);
   form.addEventListener("input", schedulePreview);
   els.start.addEventListener("click", startRun);
   els.skip.addEventListener("click", () => control("skip"));

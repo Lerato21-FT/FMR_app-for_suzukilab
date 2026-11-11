@@ -25,4 +25,6 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
 
 6. **[QUEUED]** Real hardware drivers. Implement and bench-test the drivers against the actual instruments, using the access route chosen in Q2. Add the stepper motor if needed (Q4).
 
+8. **[COMPLETE in simulation 2026-11-05]** Centre each sweep on its resonance, and set the modulation as a field. The user sets a field range and step (Oe); each frequency sweeps from Hres + range/2 down to Hres − range/2, where Hres is the Kittel estimate at that frequency (bipolar supply, so sweeps may cross zero). The in-plane Kittel relation follows APL 127, 032406 Eq. 2 with H4∥ = 0, parameterised by g (default 2); out-of-plane is unchanged. The user sets the modulation field (Oe rms, default 2.0); the backend computes the SR830 sine amplitude (Hmod / 5.219 Oe/V, 2 mV steps). Tests in `tests/2026-11-05/`.
+
 7. **[QUEUED]** Documentation. Rewrite ARCHITECTURE.md and the README for the acquisition app, and add `docs/labview-fmr-setup.md`.
