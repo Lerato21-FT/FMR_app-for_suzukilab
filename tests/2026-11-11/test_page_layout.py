@@ -4,9 +4,13 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+import pytest
+from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
-from app.models import RunSettings
+from app.api import create_app
+from app.config import AppConfig
+from app.models import Limits, RunSettings
 
 WEB = Path(__file__).resolve().parents[2] / "src" / "web"
 HTML = (WEB / "index.html").read_text(encoding="utf-8")
@@ -67,3 +71,21 @@ def test_every_element_the_script_uses_exists():
 
 def test_every_run_setting_has_an_input():
     assert set(_leaf_fields(RunSettings())) == PAGE.names
+
+
+@pytest.mark.parametrize("path", ["/", "/index.html", "/app.js", "/styles.css"])
+def test_page_files_are_revalidated_on_every_load(tmp_path, path):
+    # Without this the browser reuses an old app.js/styles.css after an update.
+    config = AppConfig(
+        instrument_mode="simulated",
+        sr830_address="GPIB0::8::INSTR",
+        rf_source_address="GPIB0::19::INSTR",
+        lakeshore_address="ASRL3::INSTR",
+        magnet_aux_channel=1,
+        data_dir=tmp_path,
+        limits=Limits(),
+    )
+    with TestClient(create_app(config)) as client:
+        response = client.get(path)
+    assert response.status_code == 200
+    assert response.headers.get("cache-control") == "no-cache"

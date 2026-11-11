@@ -1,6 +1,7 @@
 """HTTP routes. Every result comes from the backend modules; this file only routes."""
 
 import logging
+import os
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -8,6 +9,8 @@ from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, status
 from fastapi.staticfiles import StaticFiles
+from starlette.responses import Response
+from starlette.types import Scope
 
 from app.config import PROJECT_ROOT, AppConfig
 from app.instruments.base import Lab
@@ -27,6 +30,28 @@ from app.storage import SweepStore
 logger = logging.getLogger(__name__)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
+
+
+class RevalidatedStaticFiles(StaticFiles):
+    """Static files the browser must revalidate on every load.
+
+    Without ``Cache-Control: no-cache`` browsers cache files heuristically
+    from ``Last-Modified`` and, after an update, keep running an old app.js
+    or styles.css against a new index.html. Unchanged files still come back
+    as cheap ``304 Not Modified`` responses via the ETag.
+    """
+
+    def file_response(
+        self,
+        full_path: str | os.PathLike[str],
+        stat_result: os.stat_result,
+        scope: Scope,
+        status_code: int = 200,
+    ) -> Response:
+        """Serve the file with ``Cache-Control: no-cache``."""
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
 
 
 def default_lab_factory(config: AppConfig) -> Callable[[], Lab]:
@@ -161,10 +186,10 @@ def create_app(
 
     app.mount(
         "/vendor",
-        StaticFiles(directory=WEB_DIR / "vendor", check_dir=False),
+        RevalidatedStaticFiles(directory=WEB_DIR / "vendor", check_dir=False),
         name="vendor",
     )
-    app.mount("/", StaticFiles(directory=WEB_DIR, html=True), name="web")
+    app.mount("/", RevalidatedStaticFiles(directory=WEB_DIR, html=True), name="web")
     return app
 
 

@@ -90,6 +90,8 @@ The API rejects `..`, absolute paths, drive letters, backslashes and Windows
 device names. `SweepStore` also refuses any path that resolves outside
 the data directory, so measurement data stays inside the repository.
 `GET /api/settings/defaults` reports that data directory for the page to show.
+The page and `/vendor/` files are served with `Cache-Control: no-cache`, so a
+browser never runs an old `app.js` or `styles.css` against a new `index.html`.
 `tests/2026-11-11/test_page_layout.py` checks the quadrants, the tab names, and
 that every run setting and every element the script uses exists. The page has
 not been checked in a real browser yet (task 5, `make browser`).
