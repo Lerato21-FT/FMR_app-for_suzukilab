@@ -90,6 +90,11 @@ The API rejects `..`, absolute paths, drive letters, backslashes and Windows
 device names. `SweepStore` also refuses any path that resolves outside
 the data directory, so measurement data stays inside the repository.
 `GET /api/settings/defaults` reports that data directory for the page to show.
+The Run quadrant ends with a link to the separate analysis app
+(`FMR_ANALYSIS_URL`, default `http://127.0.0.1:8765`), opened in a new tab.
+`config.resolve_analysis_url` accepts only `http`/`https` on `127.0.0.1` or
+`localhost`, and the defaults endpoint sends the address to the page. The
+acquisition app never contacts the analysis app itself.
 `src/app/sr830_tables.py` holds the SR830 time-constant (OFLT) and
 sensitivity (SENS) tables. The defaults endpoint sends them with labels, and
 the page shows them as dropdowns. `check_limits` refuses a wait per step

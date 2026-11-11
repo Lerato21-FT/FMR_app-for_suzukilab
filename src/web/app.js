@@ -13,6 +13,7 @@ const els = {
   sineDrive: document.getElementById("sine-drive"),
   dataDir: document.getElementById("data-dir"),
   connection: document.getElementById("connection"),
+  analysisLink: document.getElementById("analysis-link"),
   start: document.getElementById("start"),
   skip: document.getElementById("skip"),
   stop: document.getElementById("stop"),
@@ -357,6 +358,8 @@ async function init() {
   const defaults = await api("/api/settings/defaults");
   els.mode.textContent = `${defaults.instrument_mode} instruments`;
   els.dataDir.textContent = defaults.data_dir;
+  els.analysisLink.href = defaults.analysis_url;
+  els.analysisLink.title = `Opens ${defaults.analysis_url} in a new tab`;
   fillOptions("lockin.time_constant_index", defaults.time_constants);
   fillOptions("lockin.sensitivity_index", defaults.sensitivities);
   fillForm(defaults.settings);

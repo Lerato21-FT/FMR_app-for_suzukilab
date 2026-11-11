@@ -115,6 +115,12 @@ On a narrow window the quadrants stack.
 Plots of signal and phase against the measured field update every half
 second.
 
+**Open data analysis ↗**, at the bottom of the Run quadrant, opens the
+separate FMR analysis app in a new tab. Start that app first with `make up`
+in `Desktop/FMR_webapp/EE292-part-1`, then upload the CSVs from your save
+folder. Its address is `FMR_ANALYSIS_URL` in `.env` (default
+`http://127.0.0.1:8765`, local addresses only).
+
 If the page shows a red banner saying it can't reach the app, the `make run`
 terminal was closed or stopped. Start it again and reload the page. Use **Sweep** above the plots to look at earlier frequencies of the
 run.

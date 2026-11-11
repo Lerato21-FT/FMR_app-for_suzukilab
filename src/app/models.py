@@ -257,6 +257,9 @@ class Defaults(StrictModel):
     sensitivities: list[LockInOption] = Field(
         description="SR830 sensitivities (full scale) by SENS index."
     )
+    analysis_url: str = Field(
+        description="Local address of the FMR analysis app (FMR_ANALYSIS_URL)."
+    )
     data_dir: str = Field(
         description="Where save_folder is created: relative to the repository "
         "when inside it (e.g. 'data/measurements'), otherwise absolute."

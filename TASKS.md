@@ -33,4 +33,6 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
 
 11. **[COMPLETE in tests 2026-11-11; not yet seen in a browser]** When the app is not running, the page shows a red banner ("Can't reach the app. Is `make run` still running?") instead of "Request failed."; other failures show their HTTP status, and a restart mid-run is reported. (The Hfmr guess and start/stop were already in the preview table, so nothing changed there.)
 
+12. **[COMPLETE in tests 2026-11-11]** An "Open data analysis ↗" button at the bottom of the Run quadrant opens the analysis app (`Desktop/FMR_webapp/EE292-part-1`) in a new tab. Its address is `FMR_ANALYSIS_URL` in `.env` (default `http://127.0.0.1:8765`), validated as local only. Tests: `tests/2026-11-11/test_analysis_link.py`.
+
 7. **[QUEUED]** Documentation. Rewrite ARCHITECTURE.md and the README for the acquisition app, and add `docs/labview-fmr-setup.md`.

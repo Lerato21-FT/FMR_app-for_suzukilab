@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 from app.models import Limits
 
@@ -12,6 +13,10 @@ from app.models import Limits
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 InstrumentMode = Literal["simulated", "hardware"]
+
+#: Where the separate FMR analysis app is served (its `make up`).
+DEFAULT_ANALYSIS_URL = "http://127.0.0.1:8765"
+_LOCAL_HOSTS = frozenset({"127.0.0.1", "localhost"})
 
 
 class ConfigError(ValueError):
@@ -29,6 +34,7 @@ class AppConfig:
     magnet_aux_channel: int
     data_dir: Path
     limits: Limits
+    analysis_url: str = DEFAULT_ANALYSIS_URL
 
     @classmethod
     def from_env(
@@ -67,6 +73,9 @@ class AppConfig:
                 env.get("FMR_DATA_DIR", "data/measurements"), root
             ),
             limits=limits,
+            analysis_url=resolve_analysis_url(
+                env.get("FMR_ANALYSIS_URL", "").strip() or DEFAULT_ANALYSIS_URL
+            ),
         )
 
 
@@ -80,6 +89,34 @@ def resolve_data_dir(value: str, root: Path = PROJECT_ROOT) -> Path:
     if not path.is_relative_to(root.resolve()):
         raise ConfigError("FMR_DATA_DIR must be inside the repository")
     return path
+
+
+def resolve_analysis_url(value: str) -> str:
+    """Check that ``value`` is a plain local web address and return it.
+
+    Only ``http``/``https`` on ``127.0.0.1`` or ``localhost`` are accepted,
+    with an optional port and path, so the page never links off this computer.
+
+    Raises:
+        ConfigError: if the address is anything else.
+    """
+    problem = "FMR_ANALYSIS_URL must look like http://127.0.0.1:8765 (local only)"
+    parts = urlsplit(value)
+    try:
+        port = parts.port  # raises ValueError when out of range
+    except ValueError as exc:
+        raise ConfigError(problem) from exc
+    if (
+        parts.scheme not in ("http", "https")
+        or parts.hostname not in _LOCAL_HOSTS
+        or parts.username is not None
+        or parts.password is not None
+        or parts.query
+        or parts.fragment
+        or (port is not None and port < 1)
+    ):
+        raise ConfigError(problem)
+    return value
 
 
 def _float(env: Mapping[str, str], name: str, default: float) -> float:

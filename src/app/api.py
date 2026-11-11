@@ -99,6 +99,7 @@ def create_app(
             limits=runner.limits,
             instrument_mode=config.instrument_mode,
             data_dir=data_dir.as_posix(),
+            analysis_url=config.analysis_url,
             time_constants=list(TIME_CONSTANTS),
             sensitivities=list(SENSITIVITIES),
         )
