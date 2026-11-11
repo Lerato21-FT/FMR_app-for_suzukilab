@@ -8,7 +8,7 @@ from app.calibration import (
     sweep_voltages,
 )
 from app.models import SR830_AUX_RESOLUTION_V, RunSettings, SweepPlan
-from app.storage import sweep_file_name
+from app.storage import sweep_relative_path
 
 _MV_DECIMALS = 3
 
@@ -61,7 +61,7 @@ def plan_sweeps(settings: RunSettings) -> tuple[list[SweepPlan], list[str]]:
                 end_v=end_v,
                 step_v=step_v,
                 points=len(sweep_voltages(begin_v, end_v, step_v)),
-                file_name=sweep_file_name(settings, frequency),
+                file_name=sweep_relative_path(settings, frequency),
             )
         )
     return plans, errors

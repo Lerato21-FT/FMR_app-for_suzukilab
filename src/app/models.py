@@ -4,7 +4,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 #: Smallest SR830 sine output amplitude (V rms); used as "modulation off".
 SR830_MIN_SINE_V = 0.004
@@ -18,6 +18,17 @@ SR830_AUX_RANGE_V = 10.5
 SR830_AUX_RESOLUTION_V = 0.001
 
 FrequencyGHz = Annotated[float, Field(gt=0, le=40, allow_inf_nan=False)]
+
+#: One folder name: starts with a letter or digit, never ends with a dot.
+_FOLDER_SEGMENT = r"[A-Za-z0-9](?:[A-Za-z0-9_.-]{0,62}[A-Za-z0-9_-])?"
+#: Up to four "/"-separated folder names, or empty for the data directory.
+SAVE_FOLDER_PATTERN = rf"^(?:{_FOLDER_SEGMENT}(?:/{_FOLDER_SEGMENT}){{0,3}})?$"
+#: Device names Windows reserves in every folder, with or without an extension.
+_WINDOWS_RESERVED = frozenset(
+    {"con", "prn", "aux", "nul"}
+    | {f"com{i}" for i in range(1, 10)}
+    | {f"lpt{i}" for i in range(1, 10)}
+)
 
 
 class StrictModel(BaseModel):
@@ -132,6 +143,23 @@ class RunSettings(StrictModel):
     lockin: LockInSettings = Field(default_factory=LockInSettings)
     calibration: CalibrationSettings = Field(default_factory=CalibrationSettings)
     file_prefix: str = Field("fmr", pattern=r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$")
+    save_folder: str = Field(
+        "",
+        pattern=SAVE_FOLDER_PATTERN,
+        description="Folder inside the data directory for this run's files, "
+        "e.g. '2026-11-11_CoFeB' or 'CoFeB/run_2'; empty saves in the data "
+        "directory itself. Absolute paths, drive letters, '..' and '\\' are "
+        "rejected, so files can never be written outside the repository.",
+    )
+
+    @field_validator("save_folder")
+    @classmethod
+    def _check_save_folder(cls, value: str) -> str:
+        """Reject Windows reserved device names (CON, NUL, COM1, ...)."""
+        for segment in filter(None, value.split("/")):
+            if segment.split(".")[0].lower() in _WINDOWS_RESERVED:
+                raise ValueError(f"'{segment}' is a reserved name on Windows")
+        return value
 
     @model_validator(mode="after")
     def _check_sweep(self) -> Self:

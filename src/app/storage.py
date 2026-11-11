@@ -35,25 +35,49 @@ def sweep_file_name(settings: RunSettings, frequency_ghz: float) -> str:
     )
 
 
+def sweep_relative_path(settings: RunSettings, frequency_ghz: float) -> str:
+    """Return the sweep file's path relative to the data directory.
+
+    The file goes in ``settings.save_folder`` (validated by ``RunSettings``),
+    e.g. ``CoFeB/run_2/fmr-10000MHz-...csv``; an empty folder gives the bare
+    file name.
+    """
+    name = sweep_file_name(settings, frequency_ghz)
+    return f"{settings.save_folder}/{name}" if settings.save_folder else name
+
+
 class SweepStore:
-    """Writes sweep files into one directory, never overwriting."""
+    """Writes sweep files under one directory, never overwriting.
+
+    File names may include sub-folders (``folder/name.csv``); any path that
+    would resolve outside the directory is refused.
+    """
 
     def __init__(self, directory: Path) -> None:
         """Use ``directory`` (created on first write)."""
         self.directory = directory
 
+    def _path(self, name: str) -> Path:
+        """Return where ``name`` lives, refusing anything outside the directory."""
+        base = self.directory.resolve()
+        path = (base / name).resolve()
+        if not path.is_relative_to(base) or path == base:
+            raise ValueError(f"{name!r} is outside the data directory")
+        return path
+
     def existing(self, names: Sequence[str]) -> list[str]:
         """Return which of ``names`` already exist."""
-        return [name for name in names if (self.directory / name).exists()]
+        return [name for name in names if self._path(name).exists()]
 
     def write(self, name: str, points: Sequence[DataPoint]) -> Path:
         """Write ``points`` as rows of field (Oe), X (V) and phase (deg).
 
         Raises:
+            ValueError: if ``name`` resolves outside the directory.
             FileExistsConflictError: if the file already exists.
         """
-        self.directory.mkdir(parents=True, exist_ok=True)
-        path = self.directory / name
+        path = self._path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with path.open("x", encoding="ascii", newline="\n") as handle:
                 for point in points:

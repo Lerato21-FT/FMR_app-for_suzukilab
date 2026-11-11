@@ -25,7 +25,7 @@ from app.models import (
     SweepState,
     SweepSummary,
 )
-from app.storage import SweepStore, sweep_file_name
+from app.storage import SweepStore, sweep_relative_path
 from app.sweep_plan import aux_step_v, plan_sweeps
 
 logger = logging.getLogger(__name__)
@@ -206,7 +206,7 @@ class MeasurementRunner:
             RunConflictError: if another run is active.
         """
         errors = check_limits(settings, self._limits)
-        names = [sweep_file_name(settings, f) for f in settings.frequencies_ghz]
+        names = [sweep_relative_path(settings, f) for f in settings.frequencies_ghz]
         if len(set(names)) != len(names):
             errors.append("two frequencies give the same file name")
         taken = self._store.existing(names)
