@@ -60,8 +60,9 @@ function readForm() {
     if (input.type === "checkbox") value = input.checked;
     else if (input.name === "frequencies_ghz") {
       value = input.value.split(/[\s,;]+/).filter(Boolean).map(Number);
-    } else if (input.type === "number") value = input.value === "" ? null : Number(input.value);
-    else value = input.value;
+    } else if (input.type === "number" || input.dataset.type === "int") {
+      value = input.value === "" ? null : Number(input.value);
+    } else value = input.value;
     const path = input.name.split(".");
     let node = settings;
     for (const key of path.slice(0, -1)) node = node[key] ??= {};
@@ -115,6 +116,9 @@ async function updatePreview() {
     const p = await api("/api/preview", { method: "POST", body: JSON.stringify(readForm()) });
     const drive = `${p.sine_amplitude_v.toFixed(3)} V rms = ${p.modulation_rms_oe.toFixed(3)} Oe rms`;
     els.sineDrive.textContent = drive;
+    for (const out of document.querySelectorAll(".min-wait")) {
+      out.textContent = `${p.min_step_wait_ms} ms`;
+    }
     const summary = [
       ["Field step", `${p.field_step_oe.toFixed(2)} Oe (after 1 mV rounding)`],
       ["Modulation", drive],
@@ -301,10 +305,22 @@ async function identify() {
 
 // ---------- start-up -------------------------------------------------------
 
+// Fill an SR830 index <select> with the backend's labelled table ("8 = 100 ms").
+function fillOptions(name, options) {
+  form.elements[name].replaceChildren(...options.map((o) => {
+    const option = document.createElement("option");
+    option.value = String(o.index);
+    option.textContent = `${o.index} = ${o.label}`;
+    return option;
+  }));
+}
+
 async function init() {
   const defaults = await api("/api/settings/defaults");
   els.mode.textContent = `${defaults.instrument_mode} instruments`;
   els.dataDir.textContent = defaults.data_dir;
+  fillOptions("lockin.time_constant_index", defaults.time_constants);
+  fillOptions("lockin.sensitivity_index", defaults.sensitivities);
   fillForm(defaults.settings);
   setupTabs();
   form.addEventListener("input", schedulePreview);

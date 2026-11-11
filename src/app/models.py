@@ -81,6 +81,14 @@ class CalibrationSettings(StrictModel):
     )
 
 
+class LockInOption(StrictModel):
+    """What one SR830 index means, e.g. time constant 8 = 0.1 s, '100 ms'."""
+
+    index: int
+    value: float = Field(description="Seconds (time constant) or volts (sensitivity).")
+    label: str
+
+
 class LockInSettings(StrictModel):
     """SR830 settings applied at the start of a run."""
 
@@ -128,7 +136,13 @@ class RunSettings(StrictModel):
         description="Field step (Oe); rounded to whole 1 mV Aux Out steps.",
     )
     resonance: ResonanceModel = Field(default_factory=ResonanceModel)
-    step_wait_ms: int = Field(200, ge=0, le=60_000)
+    step_wait_ms: int = Field(
+        300,
+        ge=0,
+        le=60_000,
+        description="Wait after each field step before reading (ms). Must be at "
+        "least 3 lock-in time constants.",
+    )
     ramp_step_v: float = Field(0.05, ge=0.001, le=1.0)
     ramp_wait_ms: int = Field(50, ge=0, le=60_000)
     saturate_wait_ms: int = Field(2000, ge=0, le=600_000)
@@ -225,6 +239,9 @@ class Preview(StrictModel):
         description="Modulation field that drive gives (Oe rms)."
     )
     estimated_run_seconds: float
+    min_step_wait_ms: int = Field(
+        description="Shortest wait per step the lock-in time constant allows (ms)."
+    )
     limit_errors: list[str]
 
 
@@ -234,6 +251,12 @@ class Defaults(StrictModel):
     settings: RunSettings
     limits: Limits
     instrument_mode: Literal["simulated", "hardware"]
+    time_constants: list[LockInOption] = Field(
+        description="SR830 time constants by OFLT index."
+    )
+    sensitivities: list[LockInOption] = Field(
+        description="SR830 sensitivities (full scale) by SENS index."
+    )
     data_dir: str = Field(
         description="Where save_folder is created: relative to the repository "
         "when inside it (e.g. 'data/measurements'), otherwise absolute."

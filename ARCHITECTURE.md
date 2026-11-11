@@ -90,6 +90,10 @@ The API rejects `..`, absolute paths, drive letters, backslashes and Windows
 device names. `SweepStore` also refuses any path that resolves outside
 the data directory, so measurement data stays inside the repository.
 `GET /api/settings/defaults` reports that data directory for the page to show.
+`src/app/sr830_tables.py` holds the SR830 time-constant (OFLT) and
+sensitivity (SENS) tables. The defaults endpoint sends them with labels, and
+the page shows them as dropdowns. `check_limits` refuses a wait per step
+shorter than 3 time constants, and the preview reports that minimum.
 The page and `/vendor/` files are served with `Cache-Control: no-cache`, so a
 browser never runs an old `app.js` or `styles.css` against a new `index.html`.
 `tests/2026-11-11/test_page_layout.py` checks the quadrants, the tab names, and

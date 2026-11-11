@@ -50,7 +50,8 @@
             <label>Ramp wait (ms) <input name="ramp_wait_ms" type="number" step="1"></label>
             <label>Saturate wait (ms) <input name="saturate_wait_ms" type="number" step="1"></label>
             <label>Wait at zero (ms) <input name="zero_wait_ms" type="number" step="1"></label>
-            <label>Wait per step (ms) <input name="step_wait_ms" type="number" step="1"></label>
+            <label>Wait per step (ms) <input name="step_wait_ms" type="number" step="1" aria-describedby="wait-hint">
+              <small id="wait-hint" class="muted">≥ <output class="min-wait">…</output> (3 × SR830 τ)</small></label>
           </div>
         </fieldset>
         <fieldset>
@@ -86,8 +87,11 @@
           <legend>SR830 lock-in and modulation</legend>
           <div class="grid">
             <label>Reference frequency (Hz) <input name="lockin.reference_frequency_hz" type="number" step="any"></label>
-            <label>Time constant index <input name="lockin.time_constant_index" type="number" step="1"></label>
-            <label>Sensitivity index <input name="lockin.sensitivity_index" type="number" step="1"></label>
+            <label>Time constant
+              <select name="lockin.time_constant_index" data-type="int" aria-describedby="tc-hint"></select>
+              <small id="tc-hint" class="muted">Wait per step must be ≥ <output class="min-wait">…</output> (3 τ)</small></label>
+            <label>Sensitivity (full scale)
+              <select name="lockin.sensitivity_index" data-type="int"></select></label>
             <label>Modulation field (Oe rms) <input name="modulation_field_oe_rms" type="number" step="any"></label>
             <label>Modulation H scale (Oe/V rms) <input name="calibration.modulation_oe_per_volt" type="number" step="any"></label>
           </div>

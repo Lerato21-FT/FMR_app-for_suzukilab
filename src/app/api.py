@@ -25,6 +25,7 @@ from app.models import (
     RunStatus,
 )
 from app.preview import preview_run
+from app.sr830_tables import SENSITIVITIES, TIME_CONSTANTS
 from app.storage import SweepStore
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,8 @@ def create_app(
             limits=runner.limits,
             instrument_mode=config.instrument_mode,
             data_dir=data_dir.as_posix(),
+            time_constants=list(TIME_CONSTANTS),
+            sensitivities=list(SENSITIVITIES),
         )
 
     @app.post("/api/preview")

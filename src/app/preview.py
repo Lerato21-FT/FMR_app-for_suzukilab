@@ -8,6 +8,7 @@ from app.calibration import (
 )
 from app.measurement import check_limits
 from app.models import Limits, Preview, RunSettings
+from app.sr830_tables import min_step_wait_ms
 from app.sweep_plan import aux_step_v, plan_sweeps
 
 
@@ -34,5 +35,6 @@ def preview_run(settings: RunSettings, limits: Limits) -> Preview:
         sine_amplitude_v=sine_v,
         modulation_rms_oe=modulation_rms_oe(sine_v, cal),
         estimated_run_seconds=total_ms / 1000,
+        min_step_wait_ms=min_step_wait_ms(s.lockin.time_constant_index),
         limit_errors=check_limits(s, limits),
     )

@@ -14,7 +14,8 @@ from app.storage import SweepStore, sweep_file_name, sweep_relative_path
 FAST = {
     "frequencies_ghz": [10.0],
     "field_range_oe": 20.0,
-    "step_wait_ms": 0,
+    "step_wait_ms": 1,
+    "lockin": {"time_constant_index": 0},
     "ramp_wait_ms": 0,
     "saturate_wait_ms": 0,
     "zero_wait_ms": 0,

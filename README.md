@@ -93,6 +93,13 @@ On a narrow window the quadrants stack.
 
    Settings that break a safety limit are listed in red, and the run will
    refuse to start.
+
+   On the *SR830* tab the time constant and sensitivity are dropdowns showing
+   what each SR830 index means (for example `8 = 100 ms`, `17 = 1 mV`). The
+   **wait per step** must be at least **3 time constants**, so the lock-in has
+   settled before each reading. With 100 ms that is 300 ms, which is the
+   default. The page shows the minimum next to both settings, and a run with a
+   shorter wait is refused.
 3. Press **Measure**. For each frequency, the app:
    - sets the RF frequency and power, turns the RF on and sets the modulation;
    - ramps the field to the start and waits for the sample to saturate;

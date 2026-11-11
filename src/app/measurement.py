@@ -25,6 +25,11 @@ from app.models import (
     SweepState,
     SweepSummary,
 )
+from app.sr830_tables import (
+    TIME_CONSTANTS,
+    TIME_CONSTANTS_PER_STEP,
+    min_step_wait_ms,
+)
 from app.storage import SweepStore, sweep_relative_path
 from app.sweep_plan import aux_step_v, plan_sweeps
 
@@ -74,6 +79,15 @@ def check_limits(settings: RunSettings, limits: Limits) -> list[str]:
                 f"{label}: {plan.points} points per sweep exceeds the "
                 f"{limits.max_points_per_sweep} limit"
             )
+    tc_index = settings.lockin.time_constant_index
+    min_wait_ms = min_step_wait_ms(tc_index)
+    if settings.step_wait_ms < min_wait_ms:
+        errors.append(
+            f"Lock-in time constant {TIME_CONSTANTS[tc_index].label} needs a wait "
+            f"per step of at least {min_wait_ms} ms "
+            f"({TIME_CONSTANTS_PER_STEP} time constants); now "
+            f"{settings.step_wait_ms} ms"
+        )
     if settings.rf_power_dbm > limits.max_rf_power_dbm:
         errors.append(
             f"RF power {settings.rf_power_dbm} dBm exceeds the "

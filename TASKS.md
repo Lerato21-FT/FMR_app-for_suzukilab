@@ -29,4 +29,6 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
 
 9. **[COMPLETE in tests 2026-11-11; not yet opened in a browser]** Four-quadrant page modelled on the LabVIEW front panel: Data plots (top left), instrument setup with the VI's tabs H field setup / A83640B / SR830 / Stepper Motor (top right), measurement list with frequencies, orientation, angle (single value, file name only), field range and step, save folder and prefix (bottom left), run control, status and preview table (bottom right). The save folder is a validated relative name under `data/measurements/`, and nothing is written outside the repo. Added `make run-sim`. Tests are in `tests/2026-11-11/`. See `notes/2026-11-11.md`.
 
+10. **[COMPLETE in tests 2026-11-11]** SR830 time constant and sensitivity are dropdowns labelled from the manual's tables (e.g. `8 = 100 ms`, `17 = 1 mV`). The backend refuses a wait per step shorter than 3 time constants, and the default wait is now 300 ms. Tests are in `tests/2026-11-11/test_time_constant.py`.
+
 7. **[QUEUED]** Documentation. Rewrite ARCHITECTURE.md and the README for the acquisition app, and add `docs/labview-fmr-setup.md`.
