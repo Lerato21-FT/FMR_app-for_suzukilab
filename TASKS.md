@@ -31,4 +31,6 @@ Tasks are specified here. When done with a task, label it as complete. Execute t
 
 10. **[COMPLETE in tests 2026-11-11]** SR830 time constant and sensitivity are dropdowns labelled from the manual's tables (e.g. `8 = 100 ms`, `17 = 1 mV`). The backend refuses a wait per step shorter than 3 time constants, and the default wait is now 300 ms. Tests are in `tests/2026-11-11/test_time_constant.py`.
 
+11. **[COMPLETE in tests 2026-11-11; not yet seen in a browser]** When the app is not running, the page shows a red banner ("Can't reach the app. Is `make run` still running?") instead of "Request failed."; other failures show their HTTP status, and a restart mid-run is reported. (The Hfmr guess and start/stop were already in the preview table, so nothing changed there.)
+
 7. **[QUEUED]** Documentation. Rewrite ARCHITECTURE.md and the README for the acquisition app, and add `docs/labview-fmr-setup.md`.

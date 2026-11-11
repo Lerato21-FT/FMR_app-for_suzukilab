@@ -248,6 +248,16 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 dt { color: var(--muted); }
 dd { margin: 0; font-variant-numeric: tabular-nums; }
 
+.banner {
+  margin: 0;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--danger);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--danger) 15%, var(--panel));
+  font-weight: 600;
+}
+.banner[hidden] { display: none; }
+
 .errors { color: var(--danger); margin: 0; padding-left: 1.1rem; font-size: 0.8rem; }
 .errors:empty { display: none; }
 

@@ -113,7 +113,10 @@ On a narrow window the quadrants stack.
    during that shutdown is shown on the page.
 
 Plots of signal and phase against the measured field update every half
-second. Use **Sweep** above the plots to look at earlier frequencies of the
+second.
+
+If the page shows a red banner saying it can't reach the app, the `make run`
+terminal was closed or stopped. Start it again and reload the page. Use **Sweep** above the plots to look at earlier frequencies of the
 run.
 
 ## Saved data

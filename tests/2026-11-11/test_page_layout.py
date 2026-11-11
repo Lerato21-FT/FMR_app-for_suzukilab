@@ -89,3 +89,9 @@ def test_page_files_are_revalidated_on_every_load(tmp_path, path):
         response = client.get(path)
     assert response.status_code == 200
     assert response.headers.get("cache-control") == "no-cache"
+
+
+def test_page_says_when_the_app_is_not_running():
+    assert "connection" in PAGE.ids
+    assert "make run" in HTML
+    assert "Request failed." not in JS

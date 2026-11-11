@@ -12,6 +12,7 @@ const els = {
   previewErrors: document.getElementById("preview-errors"),
   sineDrive: document.getElementById("sine-drive"),
   dataDir: document.getElementById("data-dir"),
+  connection: document.getElementById("connection"),
   start: document.getElementById("start"),
   skip: document.getElementById("skip"),
   stop: document.getElementById("stop"),
@@ -73,22 +74,47 @@ function readForm() {
 
 // ---------- API helpers ----------------------------------------------------
 
+const NOT_RUNNING =
+  "Can't reach the app. Is `make run` (or `make run-sim`) still running? " +
+  "Start it again in Git Bash, then reload this page.";
+
+// Show or hide the banner that says the app (the Python server) is unreachable.
+function setConnected(connected) {
+  els.connection.hidden = connected;
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    headers: { "Content-Type": "application/json" },
-    ...options,
-  });
-  const body = await response.json().catch(() => null);
+  let response;
+  try {
+    response = await fetch(path, {
+      headers: { "Content-Type": "application/json" },
+      ...options,
+    });
+  } catch {
+    // fetch only rejects when no HTTP answer came back: the server is down.
+    setConnected(false);
+    const error = new Error(NOT_RUNNING);
+    error.detail = NOT_RUNNING;
+    throw error;
+  }
+  setConnected(true);
+  const text = await response.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
   if (!response.ok) {
     const error = new Error(`HTTP ${response.status}`);
-    error.detail = body?.detail;
+    error.status = response.status;
+    error.detail = body?.detail ??
+      `HTTP ${response.status} ${response.statusText}: ${text.slice(0, 200) || "no details"}`;
     throw error;
   }
   return body;
 }
 
-function describeDetail(detail) {
-  if (!detail) return ["Request failed."];
+// Turn any error (API validation list, server message or page bug) into lines.
+function describeError(err) {
+  const detail = err?.detail;
+  if (!detail) return [`Page error: ${err?.message ?? err}`];
   if (typeof detail === "string") return [detail];
   return detail.map((d) =>
     typeof d === "string" ? d : `${(d.loc || []).slice(1).join(".")}: ${d.msg}`
@@ -154,7 +180,7 @@ async function updatePreview() {
     els.previewSummary.replaceChildren();
     els.previewRows.replaceChildren();
     els.sineDrive.textContent = "…";
-    showList(els.previewErrors, describeDetail(err.detail));
+    showList(els.previewErrors, describeError(err));
   }
 }
 
@@ -206,7 +232,7 @@ async function startRun() {
     applyStatus(status);
     poll();
   } catch (err) {
-    showList(els.runErrors, describeDetail(err.detail));
+    showList(els.runErrors, describeError(err));
     els.start.disabled = false;
   }
 }
@@ -216,7 +242,7 @@ async function control(action) {
   try {
     await api(`/api/runs/${run.run_id}/${action}`, { method: "POST" });
   } catch (err) {
-    showList(els.runErrors, describeDetail(err.detail));
+    showList(els.runErrors, describeError(err));
   }
 }
 
@@ -227,7 +253,19 @@ async function poll() {
     const status = await api(`/api/runs/${run.run_id}?since=${nextIndex}`);
     applyStatus(status);
   } catch (err) {
-    showList(els.runErrors, describeDetail(err.detail));
+    if (err.status === 404) {
+      // The app was restarted, so it no longer knows this run.
+      run = null;
+      els.start.disabled = false;
+      els.skip.disabled = true;
+      els.stop.disabled = true;
+      els.runStatus.textContent = "The app was restarted during this run.";
+      showList(els.runErrors, [
+        "Live data for that run is gone. Sweeps finished before the restart are in the save folder.",
+      ]);
+      return;
+    }
+    showList(els.runErrors, describeError(err));
   }
   if (run && run.state === "running") pollTimer = setTimeout(poll, 500);
 }
@@ -299,7 +337,7 @@ async function identify() {
       .map((i) => `${i.role} @ ${i.address}: ${i.identity ?? i.error ?? "unknown"}`)
       .join(" · ");
   } catch (err) {
-    els.instruments.textContent = describeDetail(err.detail).join(" ");
+    els.instruments.textContent = describeError(err).join(" ");
   }
 }
 
@@ -340,4 +378,4 @@ async function init() {
   }
 }
 
-init().catch((err) => showList(els.runErrors, describeDetail(err.detail)));
+init().catch((err) => showList(els.runErrors, describeError(err)));
